@@ -29,3 +29,5 @@ jobs:
         run: node --test chinese-novelist-v3/scripts/tests/r3_plan_sections.test.mjs
       - name: Verify snapshot, diff, core consent and volume checkpoints
         run: node --test chinese-novelist-v3/scripts/tests/r3_plan_protocol.test.mjs
+      - name: Fault injection for R3 snapshot paths and approvals
+        run: node --test chinese-novelist-v3/scripts/tests/r3_faults.test.mjs
