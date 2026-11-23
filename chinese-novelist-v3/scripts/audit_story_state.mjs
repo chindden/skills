@@ -1,0 +1,77 @@
+#!/usr/bin/env node
+/** Reviewable, deterministic continuity audit. Literary/semantic audit remains an editor task. */
+import fs from 'node:fs';
+import path from 'node:path';
+import {projectRoot,readPlan,readJsonFile,sha256} from './v3_common.mjs';
+const args=process.argv.slice(2),dir=args[0],i=args.indexOf('--upto'),upto=i>=0?Number(args[i+1]):NaN;
+try{
+  if(!dir||!Number.isSafeInteger(upto)||upto<1||args.slice(1).some(s=>s.startsWith('--')&&!['--upto','--json','--write'].includes(s)))
+    throw new Error('Usage: audit_story_state.mjs <project> --upto N [--write] [--json]');
+  const root=projectRoot(dir),plan=readPlan(root),ledger=readJsonFile(root,'story-ledger.json');
+  if(ledger.schemaVersion!==1 || !['facts','foreshadowing','relationships','mechanisms'].every(k=>Array.isArray(ledger[k])))
+    throw new Error('INVALID_LEDGER_SCHEMA');
+  const known=new Set(plan.chapters.map(c=>c.chapterNumber));
+  const issues=[],warn=(code,details)=>issues.push({code,severity:'review',...details}),ids=new Set();
+  const checkEntry=(entry,collection)=>{
+    if(!entry||typeof entry!=='object'||typeof entry.id!=='string'||!entry.id.trim()||ids.has(entry.id)
+      ||!Number.isSafeInteger(entry.chapter)||entry.chapter<1||!known.has(entry.chapter))throw new Error('INVALID_LEDGER_ENTRY_'+collection);
+    ids.add(entry.id);
+  };
+  const factsByKey=new Map();
+  for(const fact of ledger.facts){
+    checkEntry(fact,'facts');
+    if(!['established','character-belief','provisional'].includes(fact.kind)||
+      typeof fact.subject!=='string'||!fact.subject.trim()||typeof fact.key!=='string'||!fact.key.trim()||
+      typeof fact.value!=='string'||!fact.value.trim()||typeof fact.evidence!=='string'||!fact.evidence.trim())
+      throw new Error('INVALID_FACT_'+fact.id);
+    if(fact.chapter>upto||fact.kind!=='established'||fact.supersededBy)continue;
+    const key=fact.subject+'\\u0000'+fact.key,previous=factsByKey.get(key);
+    if(previous&&previous.value!==fact.value)warn('FACT_CONFLICT_CANDIDATE',{ids:[previous.id,fact.id],subject:fact.subject,key:fact.key,
+      note:'同一属性出现不同有效值：可能是状态变化或错误，须按正文时间线核查'});
+    factsByKey.set(key,fact);
+  }
+  for(const f of ledger.foreshadowing){
+    checkEntry(f,'foreshadowing');
+    if(!['open','paid','dropped'].includes(f.status)||typeof f.description!=='string'||!f.description.trim())
+      throw new Error('INVALID_FORESHADOWING_'+f.id);
+    if(f.chapter<=upto&&f.status==='paid'&&(!Number.isSafeInteger(f.payoffChapter)||f.payoffChapter<f.chapter||f.payoffChapter>upto))
+      warn('FORESHADOW_PAYOFF_MISMATCH',{id:f.id});
+    if(f.chapter<=upto && f.status==='open' && upto-f.chapter>=10)
+      warn('LONG_OPEN_FORESHADOW',{id:f.id,age:upto-f.chapter,note:'长期未兑现不一定错误，审查是否有追踪计划'});
+  }
+  for(const rel of ledger.relationships){
+    checkEntry(rel,'relationships');
+    if(!Array.isArray(rel.characters)||rel.characters.length<2||
+       typeof rel.change!=='string'||!rel.change.trim()||
+       typeof rel.consequence!=='string'||!rel.consequence.trim())
+      throw new Error('INVALID_RELATIONSHIP_'+rel.id);
+  }
+  const mechanismSeen=new Map();
+  for(const m of ledger.mechanisms){
+    checkEntry(m,'mechanisms');
+    if(!['goal','strategy','opposition','cost','outcome'].every(k=>typeof m[k]==='string'&&m[k].trim()))
+      throw new Error('INVALID_MECHANISM_'+m.id);
+    if(m.chapter>upto)continue;
+    const fingerprint=[m.goal,m.strategy,m.opposition,m.cost,m.outcome].map(x=>x.replace(/\s+/g,'').toLowerCase()).join('|');
+    const prior=mechanismSeen.get(fingerprint);
+    if(prior)warn('MECHANISM_LITERAL_REPEAT',{ids:[prior.id,m.id],chapters:[prior.chapter,m.chapter],
+      note:'仅识别描述字段的字面重复，换皮剧情仍需独立编辑做语义审查'});
+    else mechanismSeen.set(fingerprint,m);
+  }
+  const complete=plan.chapters.filter(c=>c.chapterNumber<=upto&&c.status==='completed');
+  const tracked=new Set(ledger.mechanisms.filter(m=>m.chapter<=upto).map(m=>m.chapter));
+  for(const c of complete.filter(c=>c.chapterNumber>Math.max(0,upto-5))){
+    if(!tracked.has(c.chapterNumber))warn('MECHANISM_UNRECORDED',{chapter:c.chapterNumber,note:'本章故事机制尚未录入账本'});
+  }
+  const bytes=fs.readFileSync(path.join(root,'story-ledger.json'));
+  const report={schemaVersion:1,upto,createdAt:new Date().toISOString(),ledgerSha256:sha256(bytes),
+    summary:{chaptersReviewed:complete.length,issues:issues.length},issues,
+    semanticReviewRequired:['人物的真实动机与关系推进','剧情机制是否仅语义换皮','线索公平性和读者追读动力']};
+  if(args.includes('--write')){
+    const out=path.join(root,'audits','audit-ch'+String(upto).padStart(3,'0')+'.json');
+    fs.mkdirSync(path.dirname(out),{recursive:true});
+    fs.writeFileSync(out,JSON.stringify(report,null,2)+'\n',{flag:'wx'});
+    report.savedTo=path.relative(root,out);
+  }
+  console.log(JSON.stringify(report,null,2));
+} catch(e){console.log(JSON.stringify({status:'error',error:e.message}));process.exitCode=2;}

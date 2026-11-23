@@ -18,5 +18,6 @@ try{
   assert.equal(run().status,0);
   changed=JSON.parse(fs.readFileSync(path.join(root,'02-写作计划.json')));
   assert.equal(changed.v3.pilotGate.revision,0);
+  assert.ok(fs.existsSync(path.join(root,'story-ledger.json')));
   console.log('PASS v3 state init');
 }finally{fs.rmSync(root,{recursive:true,force:true});}

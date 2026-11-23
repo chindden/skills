@@ -20,6 +20,8 @@ try {
       backup:{lastVerifiedSnapshot:null}
     };
     atomicWritePlan(root,plan);
+    const ledgerFile=path.join(root,'story-ledger.json');
+    if(!fs.existsSync(ledgerFile))fs.writeFileSync(ledgerFile,JSON.stringify({schemaVersion:1,facts:[],foreshadowing:[],relationships:[],mechanisms:[]},null,2)+'\n',{flag:'wx'});
     console.log(JSON.stringify({status:'initialized',project:root,note:'Creative and story approval remain pending; do not auto-approve.'}));
   }
 } catch(e){console.log(JSON.stringify({status:'error',error:e.message}));process.exitCode=2;}
