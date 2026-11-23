@@ -68,8 +68,19 @@ export function createSnapshot(root,rel,files){
     Object.entries(content).map(([name,data])=>[name,sha256(Buffer.from(data))]))};
   const wanted=stable(manifest),expected=sha256(Buffer.from(wanted));
   const dest=path.join(root,rel),parent=path.dirname(dest);
-  fs.mkdirSync(parent,{recursive:true});
-  const realRoot=fs.realpathSync(root),realParent=fs.realpathSync(parent);
+  // Create one verified ancestor at a time: never follow an attacker-supplied
+  // symlink to an external directory, even during initial mkdir.
+  const realRoot=fs.realpathSync(root);
+  let current=realRoot;
+  for(const segment of path.relative(realRoot,parent).split(path.sep)){
+    if(!segment||segment==='.'||segment==='..')problem('R3_SNAPSHOT_PATH_INVALID');
+    current=path.join(current,segment);
+    if(fs.existsSync(current)){
+      const stat=fs.lstatSync(current);
+      if(!stat.isDirectory()||stat.isSymbolicLink())problem('R3_SNAPSHOT_UNSAFE');
+    }else fs.mkdirSync(current);
+  }
+  const realParent=fs.realpathSync(parent);
   if(!realParent.startsWith(realRoot+path.sep))problem('R3_SNAPSHOT_UNSAFE');
   if(fs.existsSync(dest)){
     const prior=verifySnapshot(root,rel);
