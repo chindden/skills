@@ -40,7 +40,7 @@ test('default project initialization remains R2 and never silently enables R3',t
   const g=cli(gate,root,'--chapter','1','--json');
   assert.equal(g.code,1);
   assert.ok(g.response.issues.some(i=>i.code==='CREATIVE_NOT_APPROVED'));
-  assert.equal(g.response.issues.some(i=>i.code==='R3_GATE_NOT_READY'),false);
+  assert.equal(g.response.issues.some(i=>i.code==='R3_CORE_NOT_APPROVED'),false);
 });
 
 test('new experimental project initializes in isolated namespace with no approvals',t=>{
@@ -59,10 +59,10 @@ test('new experimental project initializes in isolated namespace with no approva
   assert.deepEqual(plan.v3.r3.volumeCheckpoints,{});
   const g=cli(gate,root,'--chapter','1','--json');
   assert.equal(g.code,1);
-  assert.deepEqual(g.response.issues.map(i=>i.code),['R3_GATE_NOT_READY']);
+  assert.deepEqual(g.response.issues.map(i=>i.code),['R3_CORE_NOT_APPROVED']);
   const fin=cli(gate,root,'--finalize','1','--json');
   assert.equal(fin.code,1);
-  assert.deepEqual(fin.response.issues.map(i=>i.code),['R3_GATE_NOT_READY']);
+  assert.deepEqual(fin.response.issues.map(i=>i.code),['R3_CORE_NOT_APPROVED']);
 });
 
 test('opt-in does not reuse R2 author approval or overwrite historical fields',t=>{
@@ -77,7 +77,7 @@ test('opt-in does not reuse R2 author approval or overwrite historical fields',t
   const after=read(root).v3;
   for(const key of Object.keys(before))assert.deepEqual(after[key],before[key]);
   assert.equal(after.r3.corePlan.status,'pending');
-  assert.equal(cli(gate,root,'--chapter','1','--json').response.issues[0].code,'R3_GATE_NOT_READY');
+  assert.equal(cli(gate,root,'--chapter','1','--json').response.issues[0].code,'R3_CORE_NOT_APPROVED');
   const bytes=fs.readFileSync(path.join(root,'02-写作计划.json'));
   assert.equal(cli(init,root,'--enable-r3','--json').response.status,'unchanged');
   assert.deepEqual(fs.readFileSync(path.join(root,'02-写作计划.json')),bytes);
@@ -92,7 +92,7 @@ test('malformed R3 namespace is rejected rather than silently repaired or bypass
   assert.deepEqual(fs.readFileSync(path.join(root,'02-写作计划.json')),before);
   const g=cli(gate,root,'--chapter','1','--json');
   assert.equal(g.code,1);
-  assert.equal(g.response.issues[0].code,'R3_GATE_NOT_READY');
+  assert.equal(g.response.issues[0].code,'R3_STATE_INVALID');
 });
 
 test('unsupported V3 schema is not silently migrated',t=>{
