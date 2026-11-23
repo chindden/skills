@@ -10,6 +10,7 @@
 - [运行手册](references/v3/operational-runbook.md)
 - [创意竞标](references/v3/creative-lab.md)
 - [故事架构与题材路由](references/v3/story-architecture.md)
+- [八套网文知识库（按创作阶段检索）](references/webnovel/README.md)
 - [独立审稿](references/v3/editorial-gate.md)
 - [状态与备份](references/v3/state-and-backup.md)
 - [V2 工艺红队](references/v3/craft-and-redteam.md)
@@ -19,6 +20,7 @@
 
 ## 测试
 ```bash
+node scripts/tests/reference_catalog.test.mjs
 node scripts/tests/init_chapter_summaries.test.mjs
 node scripts/tests/validate_project.test.mjs
 node scripts/tests/init_v3_state.test.mjs
@@ -28,6 +30,9 @@ node scripts/tests/check_repetition.test.mjs
 node scripts/tests/prepare_pilot_review.test.mjs
 python3 -m unittest discover -s scripts/tests -p 'test_snapshot.py'
 ```
+
+## 创意与章节的知识库接入
+在创意竞标前先选目标读者、题材和主引擎，必要时组合重生、系统、苟道、反派视角等辅助机制；构思需要明确读者回报、长期冲突和失效模式。规划时查成长、人物关系和节奏库，写章时只按当前场景查场景/技法/命名库。详细路由见 [references/webnovel/README.md](references/webnovel/README.md)。这不是将上游 GPL 数据整包复制；本库是独立撰写的创作参考，也不保证自动增加文学评分。
 
 ## 前三章审稿包
 
