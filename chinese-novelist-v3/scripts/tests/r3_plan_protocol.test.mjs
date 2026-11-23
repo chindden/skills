@@ -305,8 +305,11 @@ test('restoring exact approved core and volume bytes restores gate without forgi
   assert.ok(run(root,'verify','--chapter','1').data.issues.includes('CORE_PLAN_CHANGED'));
   fs.writeFileSync(path.join(root,'00-人物档案.md'),character);
   assert.equal(run(root,'verify','--chapter','1').code,0);
-  fs.writeFileSync(path.join(root,'01-大纲.md'),outline.replace('开办灵米坊','放弃灵米坊'));
-  assert.ok(run(root,'verify','--chapter','1').data.issues.includes('VOLUME_CHECKPOINT_CHANGED'));
+  const changedVolume=outline.replace('卷一细纲','卷一改写细纲');
+  assert.notEqual(changedVolume,outline);
+  fs.writeFileSync(path.join(root,'01-大纲.md'),changedVolume);
+  const changedResult=run(root,'verify','--chapter','1');
+  assert.ok(changedResult.data.issues.includes('VOLUME_CHECKPOINT_CHANGED'),JSON.stringify(changedResult.data));
   fs.writeFileSync(path.join(root,'01-大纲.md'),outline);
   assert.equal(run(root,'verify','--chapter','1').code,0);
 });
