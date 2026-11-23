@@ -25,3 +25,5 @@ jobs:
           node-version: '22'
       - name: Verify R3 opt-in, legacy routing, and fail-closed gate
         run: node --test chinese-novelist-v3/tests/r3-routing.test.mjs
+      - name: Verify strict R3 core and rolling section parser
+        run: node --test chinese-novelist-v3/scripts/tests/r3_plan_sections.test.mjs
