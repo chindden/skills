@@ -1,5 +1,7 @@
 import fs from 'node:fs';
 import {safeFile,sha256} from './v3_common.mjs';
+import {hasR3Namespace} from './r3_state_common.mjs';
+import {verifyR3ManuscriptSnapshot} from './r3_manuscripts.mjs';
 export const r2State=()=>({schemaVersion:1,chapterReviews:{},arcReviews:{}});
 export const range=(kind,end)=>kind==='chapter'?[end]:[end-2,end-1,end];
 export const key=(kind,end)=>(kind==='chapter'?'ch':'arc')+String(end).padStart(3,'0');
@@ -67,6 +69,10 @@ export function verify(root,plan,kind,end){
     return 'R2_PACKET_MISMATCH_'+key(kind,end);
   if(!equal(hashes(root,plan,range(kind,end)),packet.manuscriptHashes))
     return 'R2_MANUSCRIPT_CHANGED_'+key(kind,end);
+  if(hasR3Namespace(plan)){
+    const snapIssue=verifyR3ManuscriptSnapshot(root,plan,kind,end,record,packet);
+    if(snapIssue)return snapIssue+'_'+key(kind,end);
+  }
   if(validate(report,packet).length||report.decision!=='pass_candidate')
     return 'R2_REPORT_INVALID_'+key(kind,end);
   return null;
