@@ -4,9 +4,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {projectRoot,readPlan,readJsonFile,sha256} from './v3_common.mjs';
 const args=process.argv.slice(2),dir=args[0],i=args.indexOf('--upto'),upto=i>=0?Number(args[i+1]):NaN;
+const handoff=args.includes('--handoff'),hasText=x=>typeof x==='string'&&x.trim().length>0;
 try{
-  if(!dir||!Number.isSafeInteger(upto)||upto<1||args.slice(1).some(s=>s.startsWith('--')&&!['--upto','--json','--write'].includes(s)))
-    throw new Error('Usage: audit_story_state.mjs <project> --upto N [--write] [--json]');
+  if(!dir||!/^\d+$/.test(args[i+1]??'')||!Number.isSafeInteger(upto)||upto<(handoff?0:1)||
+    (handoff&&args.includes('--write'))||
+    args.slice(1).some(s=>s.startsWith('--')&&!['--upto','--json','--write','--handoff'].includes(s)))
+    throw new Error('Usage: audit_story_state.mjs <project> --upto N [--write | --handoff] [--json]');
   const root=projectRoot(dir),plan=readPlan(root),ledger=readJsonFile(root,'story-ledger.json');
   if(ledger.schemaVersion!==1 || !['facts','foreshadowing','relationships','mechanisms'].every(k=>Array.isArray(ledger[k])))
     throw new Error('INVALID_LEDGER_SCHEMA');
@@ -60,18 +63,40 @@ try{
   }
   const complete=plan.chapters.filter(c=>c.chapterNumber<=upto&&c.status==='completed');
   const tracked=new Set(ledger.mechanisms.filter(m=>m.chapter<=upto).map(m=>m.chapter));
-  for(const c of complete.filter(c=>c.chapterNumber>Math.max(0,upto-5))){
-    if(!tracked.has(c.chapterNumber))warn('MECHANISM_UNRECORDED',{chapter:c.chapterNumber,note:'本章故事机制尚未录入账本'});
+  if(handoff){
+    if(complete.length!==upto)throw new Error('HANDOFF_CHAPTERS_NOT_COMPLETED');
+    if(ledger.handoffs!==undefined&&!Array.isArray(ledger.handoffs))throw new Error('INVALID_HANDOFFS');
+    const byChapter=new Map();
+    for(const item of ledger.handoffs??[]){
+      if(!item||!Number.isSafeInteger(item.chapter)||!known.has(item.chapter)||byChapter.has(item.chapter)||
+        !Array.isArray(item.events)||item.events.length===0||item.events.some(e=>!hasText(e?.when)||!hasText(e?.event))||
+        !Array.isArray(item.knowledge)||item.knowledge.some(k=>!hasText(k?.character)||!hasText(k?.change)))
+        throw new Error('HANDOFF_INVALID_CHAPTER_'+(item?.chapter??'UNKNOWN'));
+      byChapter.set(item.chapter,item);
+    }
+    for(let n=1;n<=upto;n++){
+      if(!byChapter.has(n))throw new Error('HANDOFF_MISSING_CHAPTER_'+n);
+      if(!tracked.has(n))throw new Error('HANDOFF_MISSING_MECHANISM_'+n);
+    }
+    // Expose only the requested handoff to the writer, not future entries or audit commentary.
+    const item=byChapter.get(upto);
+    const lastHandoff=item?{chapter:item.chapter,events:item.events.map(({when,event})=>({when,event})),
+      knowledge:item.knowledge.map(({character,change})=>({character,change}))}:null;
+    console.log(JSON.stringify({status:'ready',upto,lastHandoff},null,2));
+  }else{
+    for(const c of complete.filter(c=>c.chapterNumber>Math.max(0,upto-5))){
+      if(!tracked.has(c.chapterNumber))warn('MECHANISM_UNRECORDED',{chapter:c.chapterNumber,note:'本章故事机制尚未录入账本'});
+    }
+    const bytes=fs.readFileSync(path.join(root,'story-ledger.json'));
+    const report={schemaVersion:1,upto,createdAt:new Date().toISOString(),ledgerSha256:sha256(bytes),
+      summary:{chaptersReviewed:complete.length,issues:issues.length},issues,
+      semanticReviewRequired:['人物的真实动机与关系推进','剧情机制是否仅语义换皮','线索公平性和读者追读动力']};
+    if(args.includes('--write')){
+      const out=path.join(root,'audits','audit-ch'+String(upto).padStart(3,'0')+'.json');
+      fs.mkdirSync(path.dirname(out),{recursive:true});
+      fs.writeFileSync(out,JSON.stringify(report,null,2)+'\n',{flag:'wx'});
+      report.savedTo=path.relative(root,out);
+    }
+    console.log(JSON.stringify(report,null,2));
   }
-  const bytes=fs.readFileSync(path.join(root,'story-ledger.json'));
-  const report={schemaVersion:1,upto,createdAt:new Date().toISOString(),ledgerSha256:sha256(bytes),
-    summary:{chaptersReviewed:complete.length,issues:issues.length},issues,
-    semanticReviewRequired:['人物的真实动机与关系推进','剧情机制是否仅语义换皮','线索公平性和读者追读动力']};
-  if(args.includes('--write')){
-    const out=path.join(root,'audits','audit-ch'+String(upto).padStart(3,'0')+'.json');
-    fs.mkdirSync(path.dirname(out),{recursive:true});
-    fs.writeFileSync(out,JSON.stringify(report,null,2)+'\n',{flag:'wx'});
-    report.savedTo=path.relative(root,out);
-  }
-  console.log(JSON.stringify(report,null,2));
 } catch(e){console.log(JSON.stringify({status:'error',error:e.message}));process.exitCode=2;}

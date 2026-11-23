@@ -11,6 +11,8 @@ try{
   fs.writeFileSync(path.join(root,'02-写作计划.json'),JSON.stringify(plan));
   const run=()=>spawnSync(process.execPath,[script,root,'--json'],{encoding:'utf8'});
   assert.equal(run().status,0);
+  const ledger=path.join(root,'story-ledger.json'),seed=fs.readFileSync(ledger,'utf8');
+  assert.deepEqual(JSON.parse(seed).handoffs,[]);
   let changed=JSON.parse(fs.readFileSync(path.join(root,'02-写作计划.json')));
   assert.equal(changed.extra,'preserved');
   assert.equal(changed.v3.pilotGate.humanApproved,false);
@@ -18,6 +20,6 @@ try{
   assert.equal(run().status,0);
   changed=JSON.parse(fs.readFileSync(path.join(root,'02-写作计划.json')));
   assert.equal(changed.v3.pilotGate.revision,0);
-  assert.ok(fs.existsSync(path.join(root,'story-ledger.json')));
+  assert.equal(fs.readFileSync(ledger,'utf8'),seed);
   console.log('PASS v3 state init');
 }finally{fs.rmSync(root,{recursive:true,force:true});}

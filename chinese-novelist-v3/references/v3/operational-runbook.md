@@ -15,6 +15,33 @@ node scripts/init_chapter_summaries.mjs <项目目录>
 
 规划好未来章节但不要提前建立空正文。真实作品的创意与规划由作者确认后，才记录 `creativeDecision=accepted`、`storyPlanApproved=true`。
 
+## 逐章账本交接
+
+写第 N 章前查看上一章交接；第 1 章用 0，没有上一章。命令输出当前要衔接的一章，不把整本账本交给写手。写作上下文只补充本章涉及的较早事实、相关人物已知或误信的信息，并按正常文风写作。已立时间优先于规划；如有矛盾先回查已写正文，未知时间标明不明，不能猜成事实。
+
+```sh
+node scripts/audit_story_state.mjs <项目目录> --upto 0 --handoff --json
+# 写完第 1 章，完成字数检查、摘要、账本和计划状态后：
+node scripts/audit_story_state.mjs <项目目录> --upto 1 --handoff --json
+```
+
+写后记录时间锚、按时间顺序可交接的关键事件和本章人物知情变化。沿用故事内日历，或把已知起点锚定为 D+0，再用 D+1 等相对日；只在正文已确立时填精确时间。跨日、倒叙或并行事件以条目说明来由。没有知情变化时保留空数组。不填未发生的计划；标示角色推测与事实的区别。
+
+以下是 `story-ledger.json` 的单章结构示例，后续增量加入，不覆盖已有条目；各分类条目的 `id` 全局唯一：
+
+```json
+{
+  "schemaVersion": 1,
+  "facts": [{"id":"F1","chapter":1,"kind":"established","subject":"值班单","key":"状态","value":"已登记","evidence":"第1章，值班员登记场景"}],
+  "foreshadowing": [{"id":"P1","chapter":1,"status":"open","description":"柜内还有一张未写日期的值班单"}],
+  "relationships": [{"id":"R1","chapter":1,"characters":["甲","乙"],"change":"乙答应保管副本","consequence":"甲次日须向乙取回"}],
+  "mechanisms": [{"id":"M1","chapter":1,"goal":"留下凭证","strategy":"登记值班单","opposition":"对方要求口头通知","cost":"承诺次日到场","outcome":"留下登记件"}],
+  "handoffs": [{"chapter":1,"events":[{"when":"D+0 19:00","event":"甲登记值班单并把副本交给乙"}],"knowledge":[{"character":"乙","change":"已知登记件存在，未读正文"}]}]
+}
+```
+
+写后使用本章章号校验；退出非 0 则回查本章原稿和账本，先修正再开下一章。恢复会话时可重跑同一只读检查。此模式验证字段和交接是否齐全；日期冲突和因果仍须按原文独立审计。早期账本没有交接记录时需要从正文补齐；不自动迁移，不覆盖测试基线。
+
 ## 2. 前三章与独立审稿
 
 依次写完 1–3 章，更新计划状态、摘要和账本。检查实际字数和文件，再固化本次稿件：
