@@ -26,6 +26,8 @@ def create_snapshot(root: pathlib.Path, output: pathlib.Path):
         if p.is_symlink():
             raise ValueError("Symlink not permitted in snapshot: " + str(rel))
         if p.is_file():
+            if rel.as_posix() == "manifest.json":
+                raise ValueError("Reserved manifest.json in project root")
             sources.append((p, rel.as_posix()))
     if not sources:
         raise ValueError("No project files to archive")
