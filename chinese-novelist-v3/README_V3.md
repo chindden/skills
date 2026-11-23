@@ -22,8 +22,19 @@ node scripts/tests/init_chapter_summaries.test.mjs
 node scripts/tests/validate_project.test.mjs
 node scripts/tests/v3_gate.test.mjs
 node scripts/tests/check_repetition.test.mjs
+node scripts/tests/prepare_pilot_review.test.mjs
 python3 -m unittest discover -s scripts/tests -p 'test_snapshot.py'
 ```
+
+## 前三章审稿包
+
+```bash
+node scripts/prepare_pilot_review.mjs <项目目录> --json
+node scripts/v3_gate.mjs <项目目录> --chapter 4 --json
+node scripts/check_repetition.mjs <项目目录> --json
+```
+
+前三章完成后先生成审稿输入与哈希，然后交给独立编辑。评审、用户批准和稿件哈希都符合才可继续第 4 章。
 
 ## 快照命令
 

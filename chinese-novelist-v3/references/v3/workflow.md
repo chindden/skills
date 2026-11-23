@@ -24,7 +24,7 @@
 - 强制串行完成 1→2→3 章，写前按原版 `chapter-checklist.md` 读取大纲、最近章节、人物状态和文风。
 - 选用题材对应的开篇动力，不要求所有作品开篇有死亡威胁或金手指。
 - 每章运行原版字数脚本并更新摘要、事实账本；禁止为达字数注水。
-- 第 3 章完成将 `v3.pilotGate.status` 设为 `under_review`，停止所有第 4 章及以后正文创作。
+- 第 3 章完成后运行 `node scripts/prepare_pilot_review.mjs <项目目录> --json` 固化前三章 SHA-256、递增审核修订号并进入 `under_review`；此时停止所有第 4 章及以后正文创作。
 
 ## Stage 4：独立红队停审
 读取 [editorial-gate.md](editorial-gate.md)。
