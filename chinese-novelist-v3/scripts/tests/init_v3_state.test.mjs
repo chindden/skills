@@ -17,9 +17,20 @@ try{
   assert.equal(changed.extra,'preserved');
   assert.equal(changed.v3.pilotGate.humanApproved,false);
   assert.equal(changed.v3.creativeDecision,'pending');
+  assert.equal(changed.v3.r2.schemaVersion,1);
+  assert.deepEqual(changed.v3.r2.chapterReviews,{});
   assert.equal(run().status,0);
   changed=JSON.parse(fs.readFileSync(path.join(root,'02-写作计划.json')));
   assert.equal(changed.v3.pilotGate.revision,0);
   assert.equal(fs.readFileSync(ledger,'utf8'),seed);
-  console.log('PASS v3 state init');
+  // Explicit migration of a pre-planGate V3 project never invents old approval history.
+  delete changed.v3.planGate;
+  changed.v3.storyPlanApproved=true;
+  fs.writeFileSync(path.join(root,'02-写作计划.json'),JSON.stringify(changed));
+  const migrated=spawnSync(process.execPath,[script,root,'--enable-plan-gate','--json'],{encoding:'utf8'});
+  assert.equal(migrated.status,0);
+  changed=JSON.parse(fs.readFileSync(path.join(root,'02-写作计划.json')));
+  assert.equal(changed.v3.planGate.status,'pending');
+  assert.equal(changed.v3.storyPlanApproved,false,'legacy explicit migration revokes unsupported prior approval');
+  console.log('PASS v3 state init and opt-in plan gate migration');
 }finally{fs.rmSync(root,{recursive:true,force:true});}

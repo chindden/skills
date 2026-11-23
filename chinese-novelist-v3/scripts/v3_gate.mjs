@@ -2,9 +2,14 @@
 /** Deterministic chapter gate. It verifies artifacts, not literary merit or true user identity. */
 import fs from 'node:fs';
 import {projectRoot,readPlan,safeFile,pilotHashes,sameHashes,sha256,structuredReportValid} from './v3_common.mjs';
+import {checkGate} from './r2_review_common.mjs';
+import {verifyPlanGate} from './plan_review_common.mjs';
 
 const args=process.argv.slice(2),folder=args[0],chapterIndex=args.indexOf('--chapter');
-const chapter=chapterIndex<0?NaN:Number(args[chapterIndex+1]);
+const finalizeIndex=args.indexOf('--finalize');
+const finalize=finalizeIndex>=0;
+const finishChapter=finalize?Number(args[finalizeIndex+1]):null;
+const chapter=finalize?finishChapter+1:chapterIndex<0?NaN:Number(args[chapterIndex+1]);
 const issues=[];
 const fail=(code,message)=>issues.push({code,message});
 const done=(status,root)=>{
@@ -12,9 +17,9 @@ const done=(status,root)=>{
   console.log(args.includes('--json')?JSON.stringify(result,null,2):status+': '+issues.map(x=>x.code).join(','));
   process.exitCode=status==='allowed'?0:status==='blocked'?1:2;
 };
-if(!folder||!Number.isSafeInteger(chapter)||chapter<1 ||
-  args.slice(1).some((x,i)=>x.startsWith('--')&&!['--json','--chapter'].includes(x))) {
-  fail('BAD_ARGS','Usage: v3_gate.mjs <project-dir> --chapter N [--json]');
+if(!folder||!Number.isSafeInteger(chapter)||chapter<1||(finalize&&(!Number.isSafeInteger(finishChapter)||finishChapter<1||chapterIndex>=0)) ||
+  args.slice(1).some(x=>x.startsWith('--')&&!['--json','--chapter','--finalize'].includes(x))) {
+  fail('BAD_ARGS','Usage: v3_gate.mjs <project-dir> (--chapter N | --finalize N) [--json]');
   done('error',folder||null);
 }else {
   let root,plan;
@@ -24,6 +29,8 @@ if(!folder||!Number.isSafeInteger(chapter)||chapter<1 ||
     if(plan.v3?.schemaVersion!==1)fail('NO_V3_STATE','V3 状态缺失或版本不符');
     if(plan.v3?.creativeDecision!=='accepted')fail('CREATIVE_NOT_APPROVED','创意未确认');
     if(plan.v3?.storyPlanApproved!==true)fail('STORY_PLAN_NOT_APPROVED','蓝图未确认');
+    // Legacy R2 projects have no planGate; fresh V3 projects cannot bypass a version-bound plan review.
+    if(plan.v3?.planGate)for(const issue of verifyPlanGate(root,plan))fail(issue,'Stage 2 规划审核、版本冻结或作者批准无效');
     if(chapter>=4){
       const gate=plan.v3?.pilotGate||{};
       if(gate.status!=='passed')fail('PILOT_NOT_PASSED','前三章门禁未通过');
@@ -63,6 +70,8 @@ if(!folder||!Number.isSafeInteger(chapter)||chapter<1 ||
         }catch(e){if(e instanceof SyntaxError)fail('APPROVAL_RECORD_INVALID','批准文件 JSON 无效');else throw e;}
       }
     }
+    try {for(const code of checkGate(root,plan,chapter,finalize))fail(code,'R2 independent chapter/milestone review gate');}
+    catch(e){fail('R2_CHECK_ERROR',e.message);}
     done(issues.length?'blocked':'allowed',root);
   }
 }
