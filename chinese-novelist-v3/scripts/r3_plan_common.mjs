@@ -52,8 +52,8 @@ export function chapterSlots(plan,start,end){
 }
 function match(files,actual){
   const keys=Object.keys(files).sort();
-  return JSON.stringify(keys)===JSON.stringify(Object.keys(actual).sort()) &&
-    keys.every(name=>files[name]===actual[name]);
+  return keys.every(name=>files[name]===actual[name]) &&
+    Object.keys(actual).every(name=>keys.includes(name)||name==='diff.md');
 }
 export function readRecordedInput(root,rel,expected){
   const file=safeFile(root,rel);
@@ -78,7 +78,7 @@ export function verifyCore(root,plan=readPlan(root)){
     const bytes=fs.readFileSync(file);
     if(sha256(bytes)!==rec.sha256)err('R3_CORE_REVIEW_CHANGED');
     let report;try{report=JSON.parse(bytes)}catch{err('R3_CORE_REVIEW_INVALID')}
-    if(!validCoreReview(report,input,role)||report.decision!=='pass_candidate')
+    if(!validCoreReview(report,input,role,null,snapshot.files)||report.decision!=='pass_candidate')
       err('R3_CORE_REVIEW_INVALID');
   }
   const ap=safeFile(root,c.approvalPath);
@@ -97,7 +97,7 @@ export function validApproval(a,kind,expected){
     text(a.source)&&text(a.quote)&&text(a.approvedAt) &&
     Number.isFinite(Date.parse(a.approvedAt));
 }
-export function validCoreReview(report,packet,role,other=null){
+export function validCoreReview(report,packet,role,other=null,sourceFiles=null){
   if(report?.schemaVersion!==1||report?.kind!=='r3_core'||report?.role!==role||
     report.revision!==packet.revision||report.snapshotSha256!==packet.snapshotSha256||
     !text(report.summary)||!Array.isArray(report.issues)||!Array.isArray(report.checks)||
@@ -121,6 +121,7 @@ export function validCoreReview(report,packet,role,other=null){
       (item.status==='accepted'&&!text(item.acceptanceReason)))
       return false;
     ids.add(item.id);
+    if(sourceFiles && !sourceFiles[item.artifact]?.includes(item.quote))return false;
     if(report.decision==='pass_candidate' && ((item.status==='open'&&
       ['BLOCKER','MAJOR'].includes(item.severity)) || (item.status==='accepted'&&item.severity==='BLOCKER')))
       return false;
