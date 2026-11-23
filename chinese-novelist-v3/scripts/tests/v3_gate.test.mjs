@@ -16,7 +16,8 @@ try{
   const chapters=[];
   for(let n=1;n<=3;n++){const file='chapter-'+n+'.md';fs.writeFileSync(path.join(root,file),'第'+n+'章\n正文');chapters.push({chapterNumber:n,filePath:file,status:'completed',wordCountPass:true});}
   save({chapters,v3:{schemaVersion:1,creativeDecision:'accepted',storyPlanApproved:true,
-    pilotGate:{status:'pending',revision:0,humanApproved:false}}});
+    pilotGate:{status:'pending',revision:0,humanApproved:false},
+    r2:{schemaVersion:1,chapterReviews:{},arcReviews:{}}}});
   assert.equal(run('v3_gate','--chapter','1').code,0,'first three can be drafted');
   assert.equal(run('v3_gate','--chapter','4').code,1,'blocks fourth chapter before review');
   assert.equal(run('prepare_pilot_review').code,0,'creates independent review packet');
@@ -46,7 +47,21 @@ try{
     quote:'测试夹具模拟批准，非真实用户批准。',source:'test_fixture',approvedAt:'2026-11-23T12:00:00Z'};
   fs.writeFileSync(path.join(root,'user-confirmation.json'),JSON.stringify(evidence));
   assert.equal(run('record_pilot_approval','--evidence','user-confirmation.json').code,0);
-  assert.equal(run('v3_gate','--chapter','4').code,0,'allows with matching evidence and review');
+  // R2 review fixtures are declarations only; they do not prove real independent agents.
+  for(let n=1;n<=3;n++){
+    assert.equal(run('r2_review','prepare','--scope','chapter','--end',String(n),
+      '--writer-run-id','writer'+n,'--writer-context-id','writer-context'+n).code,0);
+    const rec=plan().v3.r2.chapterReviews[String(n)];
+    const packet=JSON.parse(fs.readFileSync(path.join(root,rec.inputPath),'utf8'));
+    fs.writeFileSync(path.join(root,'r2-source-'+n+'.json'),JSON.stringify({
+      schemaVersion:1,kind:'chapter',end:n,revision:rec.revision,manuscriptHashes:packet.manuscriptHashes,
+      reviewer:{kind:'independent_agent',runId:'editor'+n,contextId:'editor-context'+n},
+      decision:'pass_candidate',summary:'测试：独立审查通过',issues:[]
+    }));
+    assert.equal(run('r2_review','submit','--scope','chapter','--end',String(n),
+      '--report','r2-source-'+n+'.json').code,0);
+  }
+  assert.equal(run('v3_gate','--chapter','4').code,0,'allows with pilot and all R2 chapter reviews');
   fs.appendFileSync(path.join(root,'chapter-2.md'),'改后');
   assert.ok(run('v3_gate','--chapter','4').out.issues.some(x=>x.code==='STALE_REVIEW'));
   fs.writeFileSync(path.join(root,'chapter-2.md'),'第2章\n正文');

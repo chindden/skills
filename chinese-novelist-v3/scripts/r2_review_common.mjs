@@ -73,7 +73,7 @@ export function verify(root,plan,kind,end){
 }
 export function checkGate(root,plan,chapter,finalize=false){
   const errs=[];
-  if(plan.v3?.r2?.schemaVersion!==1)return errs; // pre-R2 projects remain in legacy mode
+  if(plan.v3?.r2?.schemaVersion!==1){errs.push('R2_PROTOCOL_NOT_ENABLED');return errs;}
   const last=chapter-1;
   if(finalize&&(plan.chapters.length!==last||plan.chapters.some(c=>c.chapterNumber>last)))
     errs.push('R2_FINALIZE_NOT_LAST_CHAPTER');
