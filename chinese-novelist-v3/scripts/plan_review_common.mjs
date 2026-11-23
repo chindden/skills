@@ -29,7 +29,7 @@ export function fingerprint(root,plan){
   out['02-写作计划.json#outline']=sha256(Buffer.from(JSON.stringify(stable)));
   return out;
 }
-const norm=s=>String(s).replace(/\s+/g,' ').trim();
+const norm=s=>typeof s==='string'?s.replace(/\s+/g,' ').trim():'';
 export function validatePlanReview(root,report,packet,role,other=null){
   const errors=[];
   if(report?.schemaVersion!==1||report?.kind!=='plan'||report?.role!==role||
