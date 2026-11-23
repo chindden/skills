@@ -27,3 +27,5 @@ jobs:
         run: node --test chinese-novelist-v3/tests/r3-routing.test.mjs
       - name: Verify strict R3 core and rolling section parser
         run: node --test chinese-novelist-v3/scripts/tests/r3_plan_sections.test.mjs
+      - name: Verify snapshot, diff, core consent and volume checkpoints
+        run: node --test chinese-novelist-v3/scripts/tests/r3_plan_protocol.test.mjs
