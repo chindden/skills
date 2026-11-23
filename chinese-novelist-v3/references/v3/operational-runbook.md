@@ -6,7 +6,7 @@
 
 确认宿主实际使用的 Skill 名称和位置；仅把源码检出到工作区不代表宿主已经注册。测试时记录 Git commit、已加载入口文件的 SHA-256、Node 版本、命令退出码。无真实注册或独立编辑入口时标记为未验证。不得覆盖现有 Skill 或小说；本阶段不使用 Google Drive。
 
-旧 V3 项目需先显式执行 `node scripts/init_v3_state.mjs <项目目录> --enable-r2 --json` 激活 R2；旧章不能伪造审稿通过记录。新项目初始化默认启用 R2，缺失 R2 状态时 `v3_gate.mjs` 会阻断。
+旧 V3 项目需先显式执行 `node scripts/init_v3_state.mjs <项目目录> --enable-r2 --json` 激活 R2；旧章不能伪造审稿通过记录。**新项目初始化默认启用 R2 和 Stage 2 规划门禁**；已有项目若明确切换到新的规划协议，应运行 `node scripts/init_v3_state.mjs <项目目录> --enable-plan-gate --json`，自动撤销旧规划批准状态，要求真实规划评审和作者重新确认。不静默迁移既有作品。
 
 按原版[写作计划](../flows/phase2-planning.md)在新项目中建立 `02-写作计划.json`，再运行：
 
@@ -15,7 +15,32 @@ node scripts/init_v3_state.mjs <项目目录> --json
 node scripts/init_chapter_summaries.mjs <项目目录>
 ```
 
-规划好未来章节但不要提前建立空正文。真实作品的创意与规划由作者确认后，才记录 `creativeDecision=accepted`、`storyPlanApproved=true`。
+规划好未来章节但不要提前建立空正文。作者明确确认创意方向后，才能记录 `creativeDecision=accepted`；`storyPlanApproved=true` 只能在新版规划门禁通过并收到作者明确批准后由脚本登记，不得手动改写。
+
+## Stage 2 正式规划审核、返工、复审与批准
+
+遵循 [Stage 2 审核协议](plan-review-protocol.md)。先将创意诊断、完整剧透梗概、规则及资源台账、人物弧线、全书/分卷/故事弧/近三章细纲、读者兑现节奏写入原生规划文件；它们必须真实存在，不能仅保存在一次性的实验报告中。
+
+规划 Agent 完成初步自查后，运行：
+
+    node scripts/plan_review.mjs <项目目录> prepare --planner-run-id REAL_PLANNER_RUN --planner-context-id REAL_PLANNER_CONTEXT
+
+产生不可覆盖、带 revision 的 reviews/plan/input-vN.json。冻结内容包括 00-人物档案.md、01-大纲.md、03-文风基准.md 的基准部分，以及 02-写作计划.json 的稳定章节/标题/字数设置字段；章节状态与写作过程数据不计入冻结哈希。
+
+在两个真实隔离的执行上下文分别执行架构编辑 architecture、读者编辑 reader；二者只读冻结内容，不接受规划 Agent 的自评分或对方评论。审核 JSON 至少含 schemaVersion、kind:"plan"、role、revision、artifactHashes、reviewer (kind/runId/contextId)、decision、summary、checks、issues。每个角色必须逐项覆盖协议列出的五个检查 ID，给出具体依据；缺陷引用必须实际出现在所审 Markdown。报告源文件准备好后执行：
+
+    node scripts/plan_review.mjs <项目目录> submit --role architecture --report reviews/plan-architecture-source.json
+    node scripts/plan_review.mjs <项目目录> submit --role reader --report reviews/plan-reader-source.json
+
+出现未解决 BLOCKER/MAJOR，必须局部修复涉及的资源/时间/因果或阅读节奏，并检查上下游卷纲；重新 prepare 产生 vN+1、两路重审。修改报告状态而不修改蓝图，不能算完成返工。
+
+两份独立报告均为 pass_candidate 后，状态只能是 awaiting_approval。作者审定当前版本的完整故事概览、审稿结论及已知风险，发送**真实明确批准消息**后，将 schemaVersion:1、kind:"plan"、approved:true、revision、inputSha256、reviewSha256:{architecture,reader}、approvedAt、quote、source 记录到项目内的 reviews/plan-author-evidence.json；不得由 Agent 模拟：
+
+    node scripts/plan_review.mjs <项目目录> approve --evidence reviews/plan-author-evidence.json
+    node scripts/plan_review.mjs <项目目录> verify
+    node scripts/v3_gate.mjs <项目目录> --chapter 1 --json
+
+通过这些命令只表明文件、哈希、角色声明与批准记录的结构一致；是否真的存在独立子代理或真实作者同意，仍应对照宿主日志与原始聊天消息。后续章节新事实写入 story-ledger.json；重大规划变更必须再次审批。03-文风基准.md 的“本书校准段落”标题之后可追加已写正文带来的校准，不需要为此重新批准整个故事蓝图。
 
 ## 逐章账本交接
 
