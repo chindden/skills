@@ -17,6 +17,8 @@ try{
   assert.equal(changed.extra,'preserved');
   assert.equal(changed.v3.pilotGate.humanApproved,false);
   assert.equal(changed.v3.creativeDecision,'pending');
+  assert.equal(changed.v3.r2.schemaVersion,1);
+  assert.deepEqual(changed.v3.r2.chapterReviews,{});
   assert.equal(run().status,0);
   changed=JSON.parse(fs.readFileSync(path.join(root,'02-写作计划.json')));
   assert.equal(changed.v3.pilotGate.revision,0);

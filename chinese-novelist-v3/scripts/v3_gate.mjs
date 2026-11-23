@@ -2,9 +2,13 @@
 /** Deterministic chapter gate. It verifies artifacts, not literary merit or true user identity. */
 import fs from 'node:fs';
 import {projectRoot,readPlan,safeFile,pilotHashes,sameHashes,sha256,structuredReportValid} from './v3_common.mjs';
+import {checkGate} from './r2_review_common.mjs';
 
 const args=process.argv.slice(2),folder=args[0],chapterIndex=args.indexOf('--chapter');
-const chapter=chapterIndex<0?NaN:Number(args[chapterIndex+1]);
+const finalizeIndex=args.indexOf('--finalize');
+const finalize=finalizeIndex>=0;
+const finishChapter=finalize?Number(args[finalizeIndex+1]):null;
+const chapter=finalize?finishChapter+1:chapterIndex<0?NaN:Number(args[chapterIndex+1]);
 const issues=[];
 const fail=(code,message)=>issues.push({code,message});
 const done=(status,root)=>{
@@ -12,9 +16,9 @@ const done=(status,root)=>{
   console.log(args.includes('--json')?JSON.stringify(result,null,2):status+': '+issues.map(x=>x.code).join(','));
   process.exitCode=status==='allowed'?0:status==='blocked'?1:2;
 };
-if(!folder||!Number.isSafeInteger(chapter)||chapter<1 ||
-  args.slice(1).some((x,i)=>x.startsWith('--')&&!['--json','--chapter'].includes(x))) {
-  fail('BAD_ARGS','Usage: v3_gate.mjs <project-dir> --chapter N [--json]');
+if(!folder||!Number.isSafeInteger(chapter)||chapter<1||(finalize&&(!Number.isSafeInteger(finishChapter)||finishChapter<1||chapterIndex>=0)) ||
+  args.slice(1).some(x=>x.startsWith('--')&&!['--json','--chapter','--finalize'].includes(x))) {
+  fail('BAD_ARGS','Usage: v3_gate.mjs <project-dir> (--chapter N | --finalize N) [--json]');
   done('error',folder||null);
 }else {
   let root,plan;
@@ -63,6 +67,8 @@ if(!folder||!Number.isSafeInteger(chapter)||chapter<1 ||
         }catch(e){if(e instanceof SyntaxError)fail('APPROVAL_RECORD_INVALID','批准文件 JSON 无效');else throw e;}
       }
     }
+    try {for(const code of checkGate(root,plan,chapter,finalize))fail(code,'R2 independent chapter/milestone review gate');}
+    catch(e){fail('R2_CHECK_ERROR',e.message);}
     done(issues.length?'blocked':'allowed',root);
   }
 }
