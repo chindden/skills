@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {projectRoot,readPlan,atomicWritePlan,safeFile,sha256} from './v3_common.mjs';
 import {range,key,hashes,equal,validate,verify} from './r2_review_common.mjs';
+import {hasR3Namespace} from './r3_state_common.mjs';
+import {prepareR3ManuscriptSnapshot,verifyR3ManuscriptSnapshot} from './r3_manuscripts.mjs';
 const a=process.argv.slice(2),flag=k=>{const i=a.indexOf(k);return i<0?null:a[i+1];};
 const nonempty=x=>typeof x==='string'&&x.trim();
 try{
@@ -32,12 +34,14 @@ try{
     if(writers.some(w=>!nonempty(w.runId)||!nonempty(w.contextId)))
       throw new Error('R2_WRITER_PROVENANCE_REQUIRED');
     const current=hashes(root,plan,numbers),revision=(old?.revision??0)+1,k=key(kind,end);
+    const r3Snapshot=hasR3Namespace(plan)?prepareR3ManuscriptSnapshot(root,plan,kind,end,revision,old):null;
     const rel='reviews/r2/input-'+k+'-v'+revision+'.json';
-    const packet={schemaVersion:1,kind,end,revision,manuscriptHashes:current,writers,preparedAt:new Date().toISOString()};
+    const packet={schemaVersion:1,kind,end,revision,manuscriptHashes:current,writers,preparedAt:new Date().toISOString(),
+      ...(r3Snapshot?{r3Snapshot}:{})};
     const bytes=Buffer.from(JSON.stringify(packet,null,2)+'\n'),dst=path.join(root,rel);
     fs.mkdirSync(path.dirname(dst),{recursive:true});fs.writeFileSync(dst,bytes,{flag:'wx'});
     records[String(end)]={status:'under_review',revision,inputPath:rel,inputSha256:sha256(bytes),
-      reviewPath:null,reviewSha256:null,manuscriptHashes:current};
+      reviewPath:null,reviewSha256:null,manuscriptHashes:current,...(r3Snapshot?{r3Snapshot}:{})};
     atomicWritePlan(root,plan);
     console.log(JSON.stringify({status:'under_review',kind,end,revision,inputPath:rel,manuscriptHashes:current}));
   }else{
@@ -50,6 +54,10 @@ try{
     if(packet.kind!==kind||packet.end!==end||packet.revision!==old.revision||
         !equal(hashes(root,plan,numbers),packet.manuscriptHashes))
       throw new Error('R2_PREPARED_MANUSCRIPT_CHANGED');
+    if(hasR3Namespace(plan)){
+      const snapError=verifyR3ManuscriptSnapshot(root,plan,kind,end,old,packet);
+      if(snapError)throw new Error(snapError);
+    }
     const bytes=fs.readFileSync(src),report=JSON.parse(bytes);
     const errors=validate(report,packet);
     if(errors.length)throw new Error(errors.join(','));
