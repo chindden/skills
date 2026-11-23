@@ -1,3 +1,5 @@
+> **V3 执行覆盖声明**：本文件来自 GitHub 原版，V3 使用时必须先遵守 `references/v3/workflow.md`、`references/v3/state-and-backup.md`。写作任何章节前运行 `node scripts/v3_gate.mjs <项目目录> --chapter N --json`；第 3 章完成必须暂停进入独立审稿和作者确认，禁止按下文“不中断连写/全部写完”的旧指令继续创作。V3 不在写作生产阶段并行创作相邻正文。
+
 # 逐章创作流程（所有写作模式共用）
 
 > 本文件是逐章创作流程的**单一事实源**。串行模式、子Agent并行模式、Agent Teams 模式均执行本清单，各模式仅"如何认领下一章"不同（见 [phase3-writing.md](phase3-writing.md)）。

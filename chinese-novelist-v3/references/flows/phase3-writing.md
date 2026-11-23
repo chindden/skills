@@ -1,3 +1,5 @@
+> **V3 执行覆盖声明**：本文件来自 GitHub 原版，V3 使用时必须先遵守 `references/v3/workflow.md`、`references/v3/state-and-backup.md`。写作任何章节前运行 `node scripts/v3_gate.mjs <项目目录> --chapter N --json`；第 3 章完成必须暂停进入独立审稿和作者确认，禁止按下文“不中断连写/全部写完”的旧指令继续创作。V3 不在写作生产阶段并行创作相邻正文。
+
 # 第三阶段：疯狂创作
 
 **重要：全程无需再次向用户确认，必须逐章创作直到完成**
