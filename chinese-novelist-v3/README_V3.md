@@ -11,6 +11,9 @@
 - [故事架构与题材路由](references/v3/story-architecture.md)
 - [独立审稿](references/v3/editorial-gate.md)
 - [状态与备份](references/v3/state-and-backup.md)
+- [V2 工艺红队](references/v3/craft-and-redteam.md)
+- [独立审稿 Agent 模板](references/v3/review-agent-template.md)
+- [工程与创作验收](references/v3/acceptance.md)
 - 原版工具：`scripts/check_chapter_wordcount.mjs`、`scripts/init_chapter_summaries.mjs`、`scripts/validate_project.mjs`
 
 ## 测试
@@ -18,8 +21,19 @@
 node scripts/tests/init_chapter_summaries.test.mjs
 node scripts/tests/validate_project.test.mjs
 node scripts/tests/v3_gate.test.mjs
+node scripts/tests/check_repetition.test.mjs
 python3 -m unittest discover -s scripts/tests -p 'test_snapshot.py'
 ```
+
+## 快照命令
+
+```bash
+python3 scripts/create_snapshot.py <项目目录> <新的快照.zip>
+python3 scripts/verify_snapshot.py <快照.zip>
+python3 scripts/restore_snapshot.py <快照.zip> <空目录>
+```
+
+仅本地校验，不代替真实 Drive 上传、回读及 SHA-256 核对。
 
 ## 限制
 脚本能验证文件、状态、字数与备份完整性，不能客观证明文学品质。多 Agent 的隔离能力须经宿主实际验证。前三章写作质量需独立审稿、作者确认，并最终用目标读者盲评验证。

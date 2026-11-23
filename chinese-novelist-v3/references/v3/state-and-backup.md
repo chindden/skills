@@ -47,4 +47,4 @@
 - `scripts/v3_gate.mjs` 检查第四章以后创作前的门禁条件；原版脚本仍负责字数与项目状态。
 - `scripts/create_snapshot.py` 创建完整 ZIP 和 SHA 清单，只处理本地文件，不负责登录 Drive。
 - 上传、回读、校验、记录云端文件 ID 由宿主 Agent 的**真实连接器调用**负责。没有写入权限时报告阻断，不应伪装上传。
-- ZIP 解压前验证条目路径和清单哈希，防止覆盖工作目录外文件；恢复到新目录并验证，再有控制地切换当前项目。
+- ZIP 解压前运行 `python3 scripts/verify_snapshot.py <快照.zip>`；使用 `python3 scripts/restore_snapshot.py <快照.zip> <空目录>`，拒绝路径穿越、重复条目和覆盖已有文件，先验证后恢复。

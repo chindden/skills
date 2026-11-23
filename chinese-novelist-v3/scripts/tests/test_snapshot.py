@@ -6,6 +6,7 @@ import zipfile
 sys.path.insert(0, str(pathlib.Path(__file__).parents[1]))
 from create_snapshot import create_snapshot
 from verify_snapshot import verify_snapshot
+from restore_snapshot import restore_snapshot
 
 class SnapshotTest(unittest.TestCase):
     def test_roundtrip_and_tamper(self):
@@ -19,6 +20,9 @@ class SnapshotTest(unittest.TestCase):
             result = create_snapshot(project, out)
             self.assertEqual(result["files"], 2)
             self.assertEqual(verify_snapshot(out)["files"], 2)
+            restored = base / "restored"
+            self.assertEqual(restore_snapshot(out, restored)["files"], 2)
+            self.assertEqual((restored / "第01章.md").read_text(encoding="utf-8"), "中文正文\n")
             with self.assertRaises(FileExistsError):
                 create_snapshot(project, out)
             broken = base / "broken.zip"

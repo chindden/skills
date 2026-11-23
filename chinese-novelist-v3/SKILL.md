@@ -26,8 +26,10 @@ description: 中文精品网文的创意竞标、故事规划、前三章试写�
   非 0 退出码立即停止，不得因“用户希望快速写完”绕开。
 - 工程校验继续执行原版 `scripts/validate_project.mjs`；它只验证状态和字数，**不代表文学审稿通过**。
 - 独立审稿报告必须有原文证据、严重程度和明确返工点；缺陷未修复不得宣称审核通过。
-- 生产小说正文时的项目字段和门禁规则见 [状态与备份](references/v3/state-and-backup.md)。
+- 生产小说正文时的项目字段和门禁规则见 [状态与备份](references/v3/state-and-backup.md)、[V2 工艺红队](references/v3/craft-and-redteam.md) 和 [独立编辑模板](references/v3/review-agent-template.md)。
 - 如果无法真实操作目录、脚本或子 Agent，明确说明降级能力并保留交付记录；**不得伪造文件、执行日志、审核人或备份**。
+
+详细验收规则见 [工程与写作验收](references/v3/acceptance.md)。
 
 ## 质量原则
 - 硬规则：因果、已确立事实、信息边界、重要物品及资源状态不能自相矛盾。
