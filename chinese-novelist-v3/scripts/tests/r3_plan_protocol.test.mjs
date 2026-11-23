@@ -21,6 +21,7 @@ function fixture(t){
   const plan={novelName:'测试卷',writingMode:'serial',minWordsPerChapter:1000,totalChapters:4,
     chapters:[1,2,3,4].map(n=>({chapterNumber:n,title:'第'+n+'章',filePath:'chapters/'+n+'.md',status:'pending'})),
     v3:{schemaVersion:1,creativeDecision:'accepted',storyPlanApproved:false,
+      r2:{schemaVersion:1,chapterReviews:{},arcReviews:{}},pilotGate:{status:'pending'},
       r3:{schemaVersion:1,mode:'experimental',status:'bootstrap',reviewPolicy:'every_chapter',
         corePlan:{status:'pending'},volumeCheckpoints:{},finalRefinement:{status:'pending'}}}};
   fs.writeFileSync(path.join(root,'02-写作计划.json'),JSON.stringify(plan,null,2)+'\n');
@@ -170,4 +171,72 @@ test('full core revision generates an immutable Diff and invalidates earlier aut
   const text=fs.readFileSync(path.join(root,x.data.diffPath),'utf8');
   assert.match(text,/先小利后天下/);assert.match(text,/先天下后小利/);
   assert.equal(run(root,'verify','--chapter','1').code,1);
+});
+
+
+test('R3 chapter gate requires real core and volume approval, not legacy storyPlanApproved',t=>{
+  const root=fixture(t);
+  const gate=(...args)=>{
+    const result=spawnSync(process.execPath,[script('v3_gate'),root,...args,'--json'],{encoding:'utf8'});
+    return {code:result.status,data:JSON.parse(result.stdout)};
+  };
+  assert.ok(gate('--chapter','1').data.issues.some(i=>i.code==='R3_CORE_NOT_APPROVED'));
+  approvedCore(root);
+  assert.ok(gate('--chapter','1').data.issues.some(i=>i.code==='R3_VOLUME_NOT_APPROVED'));
+  approvedVolume(root,1,1,2);
+  const allowed=gate('--chapter','1');
+  assert.equal(allowed.code,0,JSON.stringify(allowed.data));
+  const skipped=gate('--chapter','3');
+  assert.equal(skipped.code,1);
+  assert.ok(skipped.data.issues.some(i=>i.code==='R3_VOLUME_NOT_APPROVED_FOR_CHAPTER_3'));
+  const x=read(root);x.v3.r3.reviewPolicy='risk_tiered';save(root,x);
+  assert.ok(gate('--chapter','1').data.issues.some(i=>i.code==='R3_REVIEW_POLICY_NOT_ENABLED'));
+});
+test('R3 chapter reviews include source snapshots, validate them, and deny stale text',t=>{
+  const root=fixture(t);approvedCore(root);approvedVolume(root,1,1,2);
+  const ch=path.join(root,'chapters');
+  fs.mkdirSync(ch);
+  fs.writeFileSync(path.join(ch,'1.md'),'第一章原稿：主角开设灵米坊，因信用立下第一笔账。\n');
+  const plan=read(root);
+  plan.chapters[0].status='completed';plan.chapters[0].wordCountPass=true;
+  save(root,plan);
+  const gate=()=>{
+    const g=spawnSync(process.execPath,[script('v3_gate'),root,'--chapter','2','--json'],{encoding:'utf8'});
+    return {code:g.status,data:JSON.parse(g.stdout)};
+  };
+  assert.ok(gate().data.issues.some(i=>i.code==='R2_REVIEW_NOT_PASSED_ch001'));
+  const prep=spawnSync(process.execPath,[script('r2_review'),root,'prepare',
+    '--scope','chapter','--end','1','--writer-run-id','writer-a','--writer-context-id','ctx-a'],
+    {encoding:'utf8'});
+  assert.equal(prep.status,0,prep.stdout);
+  const packet=JSON.parse(prep.stdout);
+  const stamped=read(root).v3.r2.chapterReviews['1'];
+  assert.ok(stamped.r3Snapshot.path.startsWith('reviews/r3/manuscripts/'));
+  assert.ok(fs.existsSync(path.join(root,stamped.r3Snapshot.path,'chapter-0001.md')));
+  const report={schemaVersion:1,kind:'chapter',end:1,revision:1,
+    manuscriptHashes:packet.manuscriptHashes,
+    reviewer:{kind:'independent_agent',runId:'editor-a',contextId:'editor-ctx'},
+    decision:'pass_candidate',summary:'测试审稿，不代表真实文学判断。',issues:[]};
+  rfile(root,'r2-editor-report.json',report);
+  const submit=spawnSync(process.execPath,[script('r2_review'),root,'submit',
+    '--scope','chapter','--end','1','--report','r2-editor-report.json'],{encoding:'utf8'});
+  assert.equal(submit.status,0,submit.stdout);
+  assert.equal(gate().code,0);
+  fs.appendFileSync(path.join(ch,'1.md'),'悄然修改了已审正文。');
+  assert.ok(gate().data.issues.some(i=>i.code==='R2_MANUSCRIPT_CHANGED_ch001'));
+  fs.writeFileSync(path.join(ch,'1.md'),'第一章原稿：主角开设灵米坊，因信用立下第一笔账。\n');
+  fs.appendFileSync(path.join(root,stamped.r3Snapshot.path,'chapter-0001.md'),'tampered\n');
+  assert.ok(gate().data.issues.some(i=>i.code.includes('R3_SNAPSHOT_HASH_MISMATCH')));
+});
+test('R3 Pilot preparation requires core and first three chapter coverage, not legacy storyPlanApproved',t=>{
+  const root=fixture(t);approvedCore(root);
+  const plan=read(root);
+  // Pilot cannot launch before the corresponding chapter range is approved.
+  const a=spawnSync(process.execPath,[script('prepare_pilot_review'),root,'--json'],{encoding:'utf8'});
+  assert.equal(a.status,2);
+  assert.match(JSON.parse(a.stdout).error,/R3_PLAN_APPROVAL_REQUIRED/);
+  approvedVolume(root,1,1,2);
+  const b=spawnSync(process.execPath,[script('prepare_pilot_review'),root,'--json'],{encoding:'utf8'});
+  assert.equal(b.status,2);
+  assert.match(JSON.parse(b.stdout).error,/R3_PLAN_APPROVAL_REQUIRED/);
 });
