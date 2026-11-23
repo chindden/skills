@@ -6,6 +6,8 @@
 
 确认宿主实际使用的 Skill 名称和位置；仅把源码检出到工作区不代表宿主已经注册。测试时记录 Git commit、已加载入口文件的 SHA-256、Node 版本、命令退出码。无真实注册或独立编辑入口时标记为未验证。不得覆盖现有 Skill 或小说；本阶段不使用 Google Drive。
 
+旧 V3 项目需先显式执行 `node scripts/init_v3_state.mjs <项目目录> --enable-r2 --json` 激活 R2；旧章不能伪造审稿通过记录。新项目初始化默认启用 R2，缺失 R2 状态时 `v3_gate.mjs` 会阻断。
+
 按原版[写作计划](../flows/phase2-planning.md)在新项目中建立 `02-写作计划.json`，再运行：
 
 ```sh
@@ -53,6 +55,62 @@ node scripts/audit_story_state.mjs <项目目录> --upto 2 --handoff --anchor F1
 
 写后使用本章章号校验；退出非 0 则回查本章原稿和账本，先修正再开下一章。恢复会话时可重跑同一只读检查。此模式验证字段和交接是否齐全；日期冲突和因果仍须按原文独立审计。早期账本没有交接记录时需要从正文补齐；不自动迁移，不覆盖测试基线。
 
+## R2 逐章独立审稿与三章循环
+
+### 每章审稿：第 N 章
+1. 写作 Agent 完成初稿与常规自查，运行字数脚本，在计划中记录 `wordCount`、`wordCountPass:true`，但本章保持 `in_progress`；不得将作者自查当成独立审核。
+2. 使用宿主可查的真实写手运行与上下文 ID，冻结当前正文哈希并生成审稿包：
+
+```sh
+node scripts/r2_review.mjs <项目目录> prepare --scope chapter --end N --writer-run-id REAL_WRITER_RUN --writer-context-id REAL_WRITER_CONTEXT
+```
+
+3. 在**另一个真实执行上下文**启动审核 Agent，提供冻结正文、必要前文/设定和 [R2 独审模板](r2-review-agent-template.md)。不提供作者自评分或私有构思；保存宿主运行证据及实际输入。审核 Agent 不直接修改正文。
+4. 编辑根据审稿包写报告 JSON，存入项目内源文件（如 `reviews/editor-submission.json`）。登记并绑定哈希：
+
+```sh
+node scripts/r2_review.mjs <项目目录> submit --scope chapter --end N --report reviews/editor-submission.json
+```
+
+5. 如果有证实的缺陷，写手只修有问题的文本或账本；**正文任何变化都须重新 prepare、重新独立审稿和 submit**。获得 `pass_candidate` 后才能标记该章 `completed`、以最终正文更新摘要与事实账本，再运行写后交接校验。
+6. 写下一章前运行：
+
+```sh
+node scripts/v3_gate.mjs <项目目录> --chapter NEXT_N --json
+```
+
+### 每三章整体审稿：第 6、9、12……章
+第 3 章继续沿用原有 Pilot 独立审稿和作者确认，不生成重复的三章 R2 报告。第 6、9、12……章在完成单章审核、章节定稿、账本交接后，再由独立上下文连读最近三章，审查人物发展、剧情推进、悬念兑现、重复机制、节奏与追读意愿：
+
+```sh
+node scripts/r2_review.mjs <项目目录> prepare --scope arc --end 6
+node scripts/r2_review.mjs <项目目录> submit --scope arc --end 6 --report reviews/arc-submission.json
+node scripts/v3_gate.mjs <项目目录> --chapter 7 --json
+```
+
+以后把结束章号替换为 9、12……，但不需要每次再次请求作者批准。原本每五章账本审计仍单独执行。
+
+### 审稿报告 JSON 最小格式
+
+```json
+{
+  "schemaVersion":1,"kind":"chapter","end":1,"revision":1,
+  "manuscriptHashes":{"1":"<从真实准备包复制 SHA-256>"},
+  "reviewer":{"kind":"independent_agent","runId":"<真实审稿运行 ID>","contextId":"<真实审稿上下文 ID>"},
+  "decision":"pass_candidate","summary":"本章已核查的人物、时间及因果问题",
+  "issues":[]
+}
+```
+
+每个问题包含 `id,severity,status,chapter,quote,reason,suggestion`，如果 `status=accepted` 还须给 `acceptanceReason`。只有未发现未解决的 BLOCKER/MAJOR，报告才允许 `pass_candidate`；任何 BLOCKER 不可通过简单接受风险放行。
+
+### 成书最终门禁
+
+```sh
+node scripts/v3_gate.mjs <项目目录> --finalize LAST_N --json
+```
+
+审核包/报告不可覆盖旧修订号，保存在 `reviews/r2/`；正文或报告变动后当前审稿无效。脚本只验证文件哈希、字段、写手/审稿者**声明的**运行上下文 ID 不相同，无法证明实际存在独立子 Agent。必须结合 Gemini Tasks 真实调用日志核验；无独立 Agent 时停止而非假装通过。本轮不接入 Google Drive。
 ## 2. 前三章与独立审稿
 
 依次写完 1–3 章，更新计划状态、摘要和账本。检查实际字数和文件，再固化本次稿件：
@@ -82,4 +140,4 @@ node scripts/record_pilot_approval.mjs <项目目录> --evidence reviews/author-
 node scripts/v3_gate.mjs <项目目录> --chapter 4 --json
 ```
 
-后续每章写作前执行对应章号的门禁；完成第 5、10 章时，用 `validate_project.mjs --upto N` 验证到该章，再运行 `node scripts/audit_story_state.mjs <项目目录> --upto N --write --json`，由编辑检查机制重复、人物变化和追读体验。全书完成后才省略 `--upto` 做全量校验。结构化报告和退出码不是文学评分。
+后续每章写作前执行对应章号的门禁；R2 要求每章独立审稿和每三章整体独审；完成第 5、10 章时，用 `validate_project.mjs --upto N` 验证到该章，再运行 `node scripts/audit_story_state.mjs <项目目录> --upto N --write --json`，由编辑检查机制重复、人物变化和追读体验。全书完成后才省略 `--upto` 做全量校验。结构化报告和退出码不是文学评分。
