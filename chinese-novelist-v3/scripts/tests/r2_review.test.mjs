@@ -38,7 +38,11 @@ try{
   }))});
   for(let n=1;n<=6;n++)fs.writeFileSync(path.join(root,'chapter'+n+'.md'),'第'+n+'章。这是章节正文。');
   assert.equal(run('init_v3_state').code,0);
-  let p=plan();p.v3.creativeDecision='accepted';p.v3.storyPlanApproved=true;save(p);
+  let p=plan();
+  // Explicit legacy fixture: R2 chapter review tests predate Stage 2 plan gate;
+  // the new-project plan gate is tested separately in plan_review.test.mjs.
+  delete p.v3.planGate;
+  p.v3.creativeDecision='accepted';p.v3.storyPlanApproved=true;save(p);
   assert.equal(run('v3_gate','--chapter','1').code,0);
   assert.ok(run('v3_gate','--chapter','2').out.issues.some(i=>i.code==='R2_REVIEW_NOT_PASSED_ch001'));
   const first=prepare('chapter',1);
