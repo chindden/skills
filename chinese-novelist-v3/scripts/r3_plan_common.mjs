@@ -71,6 +71,7 @@ export function verifyCore(root,plan=readPlan(root)){
     err('R3_CORE_INPUT_MISMATCH');
   const snapshot=verifySnapshot(root,input.snapshotPath,c.snapshotSha256);
   if(!match(frozenCoreFiles(root,plan),snapshot.files))err('CORE_PLAN_CHANGED');
+  let previousReport=null;
   for(const role of coreRoles){
     const rec=c.reviews?.[role];
     const file=safeFile(root,rec?.path);
@@ -78,8 +79,9 @@ export function verifyCore(root,plan=readPlan(root)){
     const bytes=fs.readFileSync(file);
     if(sha256(bytes)!==rec.sha256)err('R3_CORE_REVIEW_CHANGED');
     let report;try{report=JSON.parse(bytes)}catch{err('R3_CORE_REVIEW_INVALID')}
-    if(!validCoreReview(report,input,role,null,snapshot.files)||report.decision!=='pass_candidate')
+    if(!validCoreReview(report,input,role,previousReport,snapshot.files)||report.decision!=='pass_candidate')
       err('R3_CORE_REVIEW_INVALID');
+    previousReport=report;
   }
   const ap=safeFile(root,c.approvalPath);
   if(!ap)err('R3_CORE_APPROVAL_MISSING');
