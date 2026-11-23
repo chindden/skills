@@ -17,10 +17,14 @@
     "pilotGate": {
       "status": "pending",
       "revision": 0,
+      "reviewInputPath": null,
       "reviewPath": null,
+      "reviewSha256": null,
       "reviewedChapterHashes": {},
       "reviewDecision": null,
       "approvedAt": null,
+      "approvalPath": null,
+      "approvalSha256": null,
       "humanApproved": false
     },
     "backup": { "lastVerifiedSnapshot": null }
@@ -28,7 +32,7 @@
 }
 ```
 
-- `status` 仅允许 `pending` → `under_review` → `revise` / `passed`。修改前三章后回到 `under_review`；不得从 `pending` 直接写 `passed`。
+- `status` 从 `pending` 进入 `under_review`。审稿要求返工时进入 `revise`，通过候选进入 `awaiting_approval`，只有真实作者确认入档后才进入 `passed`。修改前三章后须生成新版本的审稿包；不得直接写 `passed`。
 - 独立审稿记录必须绑定前三章 SHA-256。新修订将旧审稿置为过期，不能只改 JSON 的状态来冒充通过。
 - 作者批准需有对话证据和日期，审稿 Agent 不可代签。
 - `reviewDecision` 须是 `pass_candidate`，且 `humanApproved=true`、三个章节完整、审稿报告文件存在，才能放行第四章。
@@ -36,15 +40,11 @@
 
 ## 3. 持久化准则
 - 本地 Tasks 远程工作区作写作源，但不视为永久硬盘。
-- 外部 Google Drive / Git 可备份，用完整不可变 ZIP 快照存储，包括本书各章、设定、审核、计划及 manifest。
-- 上传后必须从远端回读并验证 ZIP SHA-256，才将 `backups/verified-<快照ID>.json` 标为有效。
-- 备份失败不影响本地已完成正文，但不得声称“备份成功”；后续任务应重试。
-- 新任务先读取本地计划，再检查是否存在需要恢复或冲突的版本；优先最新**已验证**快照，不只按日期猜测。
-- 云端上传 .md 的转换行为依赖具体连接器；优先 ZIP 以规避不保真的转码。不要默认连接器支持原地覆写或删除。
-- 建议每章结束生成可恢复快照，每五章保留明确里程碑；旧快照保留策略由用户决定。
+- 本阶段不接入 Google Drive 或其他云端备份，不读取、上传、下载或同步小说数据；Skill 源码仓库不是小说备份。
+- 用户需要本地快照时，使用完整 ZIP 存储各章、设定、审核、计划与 manifest。生成或恢复失败时保留已有正文，不将快照记为有效。
+- 新任务先读取现有本地计划；经用户同意从本地快照恢复时，选已验证的版本，并恢复到独立空目录，避免覆盖。
 
 ## 4. 工具边界
 - `scripts/v3_gate.mjs` 检查第四章以后创作前的门禁条件；原版脚本仍负责字数与项目状态。
 - `scripts/create_snapshot.py` 创建完整 ZIP 和 SHA 清单，只处理本地文件，不负责登录 Drive。
-- 上传、回读、校验、记录云端文件 ID 由宿主 Agent 的**真实连接器调用**负责。没有写入权限时报告阻断，不应伪装上传。
 - ZIP 解压前运行 `python3 scripts/verify_snapshot.py <快照.zip>`；使用 `python3 scripts/restore_snapshot.py <快照.zip> <空目录>`，拒绝路径穿越、重复条目和覆盖已有文件，先验证后恢复。

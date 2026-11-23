@@ -26,7 +26,7 @@ description: 中文精品网文的创意竞标、故事规划、前三章试写�
 - 在**创建第 4 章及其后正文前**运行：
   `node scripts/v3_gate.mjs <项目目录> --chapter <章号> --json`
   非 0 退出码立即停止，不得因“用户希望快速写完”绕开。
-- 工程校验继续执行原版 `scripts/validate_project.mjs`；它只验证状态和字数，**不代表文学审稿通过**。
+- 工程校验使用 `node scripts/validate_project.mjs <项目目录> --upto N --json`，只检查已写完的第 1 至 N 章；全书完成后才执行不带 `--upto` 的全量校验。它只验证状态和字数，**不代表文学审稿通过**。
 - 独立审稿报告必须有原文证据、严重程度和明确返工点；缺陷未修复不得宣称审核通过。
 - 生产小说正文时的项目字段和门禁规则见 [状态与备份](references/v3/state-and-backup.md)、[V2 工艺红队](references/v3/craft-and-redteam.md) 和 [独立编辑模板](references/v3/review-agent-template.md)。
 - 如果无法真实操作目录、脚本或子 Agent，明确说明降级能力并保留交付记录；**不得伪造文件、执行日志、审核人或备份**。

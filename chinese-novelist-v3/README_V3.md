@@ -7,6 +7,7 @@
 
 ## 主要参考
 - [总流程](references/v3/workflow.md)
+- [运行手册](references/v3/operational-runbook.md)
 - [创意竞标](references/v3/creative-lab.md)
 - [故事架构与题材路由](references/v3/story-architecture.md)
 - [独立审稿](references/v3/editorial-gate.md)
@@ -20,7 +21,9 @@
 ```bash
 node scripts/tests/init_chapter_summaries.test.mjs
 node scripts/tests/validate_project.test.mjs
+node scripts/tests/init_v3_state.test.mjs
 node scripts/tests/v3_gate.test.mjs
+node scripts/tests/audit_story_state.test.mjs
 node scripts/tests/check_repetition.test.mjs
 node scripts/tests/prepare_pilot_review.test.mjs
 python3 -m unittest discover -s scripts/tests -p 'test_snapshot.py'
@@ -44,7 +47,7 @@ python3 scripts/verify_snapshot.py <快照.zip>
 python3 scripts/restore_snapshot.py <快照.zip> <空目录>
 ```
 
-仅本地校验，不代替真实 Drive 上传、回读及 SHA-256 核对。
+本阶段只验证本地快照与恢复，不运行 Google Drive 上传、下载或同步。
 
 ## 限制
 脚本能验证文件、状态、字数与备份完整性，不能客观证明文学品质。多 Agent 的隔离能力须经宿主实际验证。前三章写作质量需独立审稿、作者确认，并最终用目标读者盲评验证。
