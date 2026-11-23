@@ -17,11 +17,13 @@ export const snapshotDigest=manifest=>sha256(Buffer.from(stable(manifest)));
 export const snapshotText=stable;
 
 export function verifySnapshot(root,rel,expectedDigest=null){
-  if(typeof rel!=='string'||!rel.startsWith('reviews/r3/'))problem('R3_SNAPSHOT_PATH_INVALID');
+  if(typeof rel!=='string'||!/^reviews\/r3\/[a-zA-Z0-9/_-]+$/.test(rel)||
+    rel.includes('//')||rel.includes('..'))problem('R3_SNAPSHOT_PATH_INVALID');
   const dir=path.resolve(root,rel),rr=fs.realpathSync(root);
   if(!dir.startsWith(rr+path.sep))problem('R3_SNAPSHOT_PATH_INVALID');
   const stat=fs.lstatSync(dir);
-  if(!stat.isDirectory()||stat.isSymbolicLink())problem('R3_SNAPSHOT_UNSAFE');
+  if(!stat.isDirectory()||stat.isSymbolicLink()||
+    !fs.realpathSync(dir).startsWith(rr+path.sep))problem('R3_SNAPSHOT_UNSAFE');
   const manifestFile=path.join(dir,'manifest.json');
   if(!fs.lstatSync(manifestFile).isFile())problem('R3_SNAPSHOT_MANIFEST_INVALID');
   const bytes=fs.readFileSync(manifestFile);
@@ -67,6 +69,8 @@ export function createSnapshot(root,rel,files){
   const wanted=stable(manifest),expected=sha256(Buffer.from(wanted));
   const dest=path.join(root,rel),parent=path.dirname(dest);
   fs.mkdirSync(parent,{recursive:true});
+  const realRoot=fs.realpathSync(root),realParent=fs.realpathSync(parent);
+  if(!realParent.startsWith(realRoot+path.sep))problem('R3_SNAPSHOT_UNSAFE');
   if(fs.existsSync(dest)){
     const prior=verifySnapshot(root,rel);
     if(prior.manifestSha256!==expected)problem('R3_SNAPSHOT_CONFLICT');
