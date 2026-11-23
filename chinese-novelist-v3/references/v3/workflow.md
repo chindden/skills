@@ -4,7 +4,7 @@
 
 ## Stage 0：项目定位与能力发现
 - 检查现有 `02-写作计划.json`、人物档案、章节摘要及未完成项目；禁止在未核对路径时覆盖已有小说。
-- 探测实际可用的文件读写、Node.js、独立子 Agent、外部备份能力。缺失能力时说明，不伪造记录。
+- 探测实际可用的文件读写、Node.js、独立子 Agent。**此阶段不启用 Google Drive**，不申请云端权限，不触发上传。
 - 续写先查质量门禁状态，再查最近相关人物与事实账本，不要把“上一章摘要”当作全部世界事实。
 
 ## Stage 1：创意竞标
@@ -17,7 +17,7 @@
 读取 [story-architecture.md](story-architecture.md)。
 - 先定核心承诺、终局方向和人物关键关系，再定全书/卷/故事弧/章节层级；近三章详细，后续按卷逐渐具体化。
 - 建立 `00-人物档案.md`、`01-大纲.md`、`03-文风基准.md` 与事实词典，利用原版 `phase2-planning.md` 的模板和 `init_chapter_summaries.mjs` 初始化摘要。
-- `02-写作计划.json` 中添加 `v3` 对象，见状态文档；只记录真实实际生成的成果，未审的章节标 pending。
+- 先创建原版 `02-写作计划.json`，再运行 `node scripts/init_v3_state.mjs <项目目录> --json` 初始化 `v3` 和 `story-ledger.json`；规划确认后才记录 `creativeDecision=accepted`、`storyPlanApproved=true`。
 - 选定标题和规划需用户确认；故事方向变化需形成变更记录。
 
 ## Stage 3：前三章试写
@@ -31,20 +31,20 @@
 - 派出独立上下文编辑 Agent；只提供作品、设定与核查规则，不提供作者自评分、创作解释或“应给好评”指示。
 - 输出缺陷 ID、定位、证据、严重性、影响和可操作修订；技术与事实性质疑要区分已核实与待查。
 - 出现阻断缺陷则标 `revise`，返工后重审。不得仅把状态改为 passed 规避问题。
-- 无阻断缺陷且重大缺陷已处理，用户明确确认前三章，才将 `pilotGate.status=passed`、`humanApproved=true` 并保存审核证据。
+- 实际独立编辑按 [操作手册](operational-runbook.md) 生成结构化审稿 JSON，用 `submit_pilot_review.mjs` 验证并入档。通过候选进入 `awaiting_approval`；用户明确确认后保存真实聊天证据，再由 `record_pilot_approval.mjs` 记录批准，进入 `passed`。不得自行模拟用户发言。
 
 ## Stage 5：分卷续写
 - **每次创建章节正文前运行** `node scripts/v3_gate.mjs <项目目录> --chapter N --json`。失败立即停止。
 - 每章执行写前状态检索→正文→独立抽审/重点审稿→事实回填→脚本验证；只写一个逻辑连续章，再领取下一章。
 - 不允许同时让多名写手修改相邻章节或同一 JSON/Markdown 状态文件。可并行做资料核验和独立编辑。
-- 每 5 章做结构审计，重点看情节**机制**重复（而非仅字面相似）、人物选择是否引发新后果、伏笔是否兑现及卷目标是否仍有效。
+- 每章填充 `story-ledger.json`：真实发生的事实、伏笔、关系变化、故事机制。每五章执行 `node scripts/audit_story_state.mjs <项目目录> --upto N --write --json`，再由独立编辑完成语义层面的重复审查、人物选择及卷目标审查。
 - 对远期卷纲的改动必须记录原因、影响范围和上一版快照；不得静默改写已成立的正文事实。
 
-## Stage 6：备份与验收
-- 作品工作区是主写入源，Google Drive/Git 是外部恢复层。制作完整不可变 ZIP（见 `scripts/create_snapshot.py`）。
-- 校验本地 ZIP 清单，再上传为二进制文件到独立项目目录；下载回读比对 SHA-256 后记录 verified。某个文件上传成功不等于项目版本已提交。
-- 恢复时只使用完整、校验通过且版本一致的快照；保留历史版本，禁止默认删除旧备份。
-- V3 质量验收包括至少三章对照盲评和 10 章续写压力测试；仅完成脚本测试不代表“精品达标”。
+## Stage 6：本地校验与作品验收
+- 本阶段**仅做本地**工程校验与可选 ZIP 快照的恢复测试。不连接 Google Drive，不上传数据，也不将云端备份写为本轮必验项。
+- 完整 ZIP 本地快照工具：`scripts/create_snapshot.py`、`verify_snapshot.py`、`restore_snapshot.py`；用户明确需要本地快照时才执行。
+- 质量验收包括至少三章对照盲评和十章续写检查；只有作品质量实际提升才能判断方法有效。
+- [Gemini Tasks 实跑手册](operational-runbook.md) 列出启动、停审、提交和人工审批的实际步骤。
 
 ## 编辑反馈分级
 - **BLOCKER**：事实矛盾、规则崩坏、关键动机断裂、非铺垫的机械降神；需修正并复审。

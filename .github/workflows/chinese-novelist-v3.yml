@@ -18,7 +18,9 @@ jobs:
           node-version: "20"
       - run: node scripts/tests/init_chapter_summaries.test.mjs
       - run: node scripts/tests/validate_project.test.mjs
+      - run: node scripts/tests/init_v3_state.test.mjs
       - run: node scripts/tests/v3_gate.test.mjs
+      - run: node scripts/tests/audit_story_state.test.mjs
       - run: node scripts/tests/check_repetition.test.mjs
       - run: node scripts/tests/prepare_pilot_review.test.mjs
       - run: python3 -m unittest discover -s scripts/tests -p 'test_snapshot.py'
