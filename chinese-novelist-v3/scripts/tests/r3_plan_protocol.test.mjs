@@ -297,3 +297,16 @@ test('full R3 Pilot path requires genuine-shaped chapter reviews, independent Pi
   const allow=g(4);
   assert.equal(allow.status,0,allow.stdout);
 });
+
+test('restoring exact approved core and volume bytes restores gate without forging a new approval',t=>{
+  const root=fixture(t);approvedCore(root);approvedVolume(root,1,1,2);
+  assert.equal(run(root,'verify','--chapter','1').code,0);
+  fs.writeFileSync(path.join(root,'00-人物档案.md'),character.replace('先小利后天下','先天下后小利'));
+  assert.ok(run(root,'verify','--chapter','1').data.issues.includes('CORE_PLAN_CHANGED'));
+  fs.writeFileSync(path.join(root,'00-人物档案.md'),character);
+  assert.equal(run(root,'verify','--chapter','1').code,0);
+  fs.writeFileSync(path.join(root,'01-大纲.md'),outline.replace('开办灵米坊','放弃灵米坊'));
+  assert.ok(run(root,'verify','--chapter','1').data.issues.includes('VOLUME_CHECKPOINT_CHANGED'));
+  fs.writeFileSync(path.join(root,'01-大纲.md'),outline);
+  assert.equal(run(root,'verify','--chapter','1').code,0);
+});
