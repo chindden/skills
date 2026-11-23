@@ -14,11 +14,13 @@
 - 向作者请求创意方向确认；未确认不进入结构化正文生产。
 
 ## Stage 2：精品故事架构
-读取 [story-architecture.md](story-architecture.md)，按需查 [人物关系](../webnovel/05-characters-relationships.md)、[机制成长](../webnovel/03-golden-finger-setting.md)、[爽点与节奏](../webnovel/04-payoff-and-pacing.md)。先论证完整故事梗概的关键因果及结局，再规划故事弧的局部兑现，不按章数硬塞高潮。
+**必须按 [Stage 2 原生规划审核、修订、复审与作者批准协议](plan-review-protocol.md) 执行；不能靠外部实验提示词补充核心流程。** 读取 [story-architecture.md](story-architecture.md)，按需查 [人物关系](../webnovel/05-characters-relationships.md)、[机制成长](../webnovel/03-golden-finger-setting.md)、[爽点与节奏](../webnovel/04-payoff-and-pacing.md)。先论证完整故事梗概的关键因果及结局，再规划故事弧的局部兑现，不按章数硬塞高潮。
+- 先诊断原始创意中的读者承诺、能力边界、人物命运和反派主动性；有结构性问题才进行修复路线对比，不强制重做作者指定的故事。**先写可完整剧透的故事梗概及明确结局，再进入分卷与章节规划。**
 - 先定核心承诺、终局方向、人物命运和关键关系，再定全书/卷/故事弧/章节层级；在 `01-大纲.md` 明确**故事弧节奏蓝图**：读者期待、铺垫与阻力、阶段性兑现、重大转折、高潮后的代价/余波、下一轮期待，以及相邻弧的情绪与冲突方式差异。近三章详细，后续按卷逐渐具体化；不预先把每三章小高潮、每十章大高潮设为硬配额。
+- 冻结前对主线资源/金额、生产能力、期限、修炼进展、金手指输出、人物知情、世界律法与反派应对做**跨文件可追溯审计**；阅读体验部分评估长篇密度、主角主动性、阶段性兑现和连续负反馈。任何已证实的硬性矛盾不得以自评分抵消。
 - 建立 `00-人物档案.md`、`01-大纲.md`、`03-文风基准.md` 与事实词典，利用原版 `phase2-planning.md` 的模板和 `init_chapter_summaries.mjs` 初始化摘要。
-- 先创建原版 `02-写作计划.json`，再运行 `node scripts/init_v3_state.mjs <项目目录> --json` 初始化 `v3` 和 `story-ledger.json`；规划确认后才记录 `creativeDecision=accepted`、`storyPlanApproved=true`。
-- 选定标题和规划需用户确认；如果大纲无法说清主角的独特命运、主要冲突变化与阶段兑现，先改大纲，不用正文写作掩盖架构不足。故事方向变化需形成变更记录。规划质量为**编辑判断**，不得伪称已有机器可验证的文学门禁。
+- 先创建原版 `02-写作计划.json`，再运行 `node scripts/init_v3_state.mjs <项目目录> --json` 初始化 `v3` 和 `story-ledger.json`；创意选择经真实作者确认后才记录 `creativeDecision=accepted`。规划完成后运行 `plan_review.mjs prepare` 冻结正式规划工件；分别用**两个真实独立执行上下文**完成架构与目标读者评审并提交报告。只有两路通过、作者批准后运行 `plan_review.mjs approve`，才能设置 `storyPlanApproved=true`，不能直接修改该标志。
+- 选定标题和规划需用户确认；如果大纲无法说清主角命运、具体因果、资源规则、主要冲突变化与阶段兑现，先改大纲，不用正文掩盖架构不足。存在 BLOCKER/MAJOR 未解决问题必须返工、重新冻结与复审；新修订不得沿用旧版批准。文学质量仍由编辑判断，版本门禁不代表自动证明精品。
 
 ## Stage 3：前三章试写
 - 场景、文风及首次命名问题，按需读 [场景写法](../webnovel/06-scene-craft.md)、[写作技法](../webnovel/07-writing-techniques.md)、[命名规则](../webnovel/08-naming-rules.md)；**只取当前章节相关条目**，不要求逐项逐章执行全部套路。

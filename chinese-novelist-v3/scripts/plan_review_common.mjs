@@ -21,7 +21,10 @@ export function fingerprint(root,plan){
     if(!file)throw new Error('PLAN_REQUIRED_FILE_MISSING_'+name);
     const bytes=fs.readFileSync(file);
     if(bytes.length<50)throw new Error('PLAN_REQUIRED_FILE_TOO_SHORT_'+name);
-    out[name]=sha256(bytes);
+    const content=bytes.toString('utf8');
+    const marker=name==='03-文风基准.md'?/^#{1,6}\s*本书校准段落(?:\s|$)/m.exec(content):null;
+    // The style baseline is frozen, but post-chapter calibration below its heading is mutable.
+    out[name]=sha256(Buffer.from(marker?content.slice(0,marker.index):content));
   }
   const stable={novelName:plan.novelName??null,totalChapters:plan.totalChapters??plan.chapters.length,
     minWordsPerChapter:plan.minWordsPerChapter??null,

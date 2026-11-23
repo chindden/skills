@@ -79,6 +79,8 @@ try{
   assert.ok(run('v3_gate','--chapter','1','--json').data.issues.some(i=>i.code==='PLAN_BLUEPRINT_CHANGED'));
   fs.writeFileSync(path.join(root,'01-大纲.md'),fs.readFileSync(path.join(root,'01-大纲.md'),'utf8').replace('未经批准的蓝图修改',''));
   assert.equal(run('plan_review','verify').code,0,'reverting to exact reviewed bytes restores approval validity');
+  fs.appendFileSync(path.join(root,'03-文风基准.md'),'第1章校准：保持人物声音独立。\n');
+  assert.equal(run('plan_review','verify').code,0,'writing-stage style calibration must not invalidate the reviewed baseline');
   fs.appendFileSync(path.join(root,g.reviews.reader.path),' ');
   assert.ok(run('plan_review','verify').data.issues.includes('PLAN_READER_REVIEW_CHANGED'));
   console.log('PASS Stage 2 plan review: freeze, dual reviewers, blockers, author evidence and stale checks');
