@@ -59,10 +59,13 @@ test('new experimental project initializes in isolated namespace with no approva
   assert.deepEqual(plan.v3.r3.volumeCheckpoints,{});
   const g=cli(gate,root,'--chapter','1','--json');
   assert.equal(g.code,1);
-  assert.deepEqual(g.response.issues.map(i=>i.code),['R3_CORE_NOT_APPROVED']);
+  assert.ok(g.response.issues.some(i=>i.code==='R3_CORE_NOT_APPROVED'));
+  assert.ok(g.response.issues.some(i=>i.code==='CREATIVE_NOT_APPROVED'));
+  assert.equal(g.response.issues.some(i=>i.code==='R3_GATE_NOT_READY'),false);
   const fin=cli(gate,root,'--finalize','1','--json');
   assert.equal(fin.code,1);
-  assert.deepEqual(fin.response.issues.map(i=>i.code),['R3_CORE_NOT_APPROVED']);
+  assert.ok(fin.response.issues.some(i=>i.code==='R3_CORE_NOT_APPROVED'));
+  assert.ok(fin.response.issues.some(i=>i.code==='CREATIVE_NOT_APPROVED'));
 });
 
 test('opt-in does not reuse R2 author approval or overwrite historical fields',t=>{
