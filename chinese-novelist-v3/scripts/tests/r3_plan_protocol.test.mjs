@@ -240,3 +240,60 @@ test('R3 Pilot preparation requires core and first three chapter coverage, not l
   assert.equal(b.status,2);
   assert.match(JSON.parse(b.stdout).error,/R3_PLAN_APPROVAL_REQUIRED/);
 });
+
+
+test('full R3 Pilot path requires genuine-shaped chapter reviews, independent Pilot and author evidence',t=>{
+  const root=fixture(t);approvedCore(root);approvedVolume(root,1,1,4);
+  const dir=path.join(root,'chapters');fs.mkdirSync(dir);
+  const plan=read(root);
+  for(let n=1;n<=3;n++){
+    fs.writeFileSync(path.join(dir,n+'.md'),'第'+n+'章正式文本：掌柜作出有代价的经营选择。\n');
+    plan.chapters[n-1].status='completed';
+    plan.chapters[n-1].wordCountPass=true;
+  }
+  save(root,plan);
+  for(let n=1;n<=3;n++){
+    const prepared=spawnSync(process.execPath,[script('r2_review'),root,'prepare',
+      '--scope','chapter','--end',String(n),'--writer-run-id','writer-'+n,
+      '--writer-context-id','ctx-'+n],{encoding:'utf8'});
+    assert.equal(prepared.status,0,prepared.stdout);
+    const pkt=JSON.parse(prepared.stdout);
+    rfile(root,'chapter-review-'+n+'.json',{
+      schemaVersion:1,kind:'chapter',end:n,revision:1,manuscriptHashes:pkt.manuscriptHashes,
+      reviewer:{kind:'independent_agent',runId:'editor-'+n,contextId:'editorctx-'+n},
+      decision:'pass_candidate',summary:'测试报告占位，不代表真实文学审核。',issues:[]
+    });
+    const submitted=spawnSync(process.execPath,[script('r2_review'),root,'submit',
+      '--scope','chapter','--end',String(n),
+      '--report','chapter-review-'+n+'.json'],{encoding:'utf8'});
+    assert.equal(submitted.status,0,submitted.stdout);
+  }
+  const g=(n)=>spawnSync(process.execPath,[script('v3_gate'),root,
+    '--chapter',String(n),'--json'],{encoding:'utf8'});
+  const deny=g(4);
+  assert.equal(deny.status,1);
+  assert.ok(JSON.parse(deny.stdout).issues.some(x=>x.code==='PILOT_NOT_PASSED'));
+  const prepared=spawnSync(process.execPath,[script('prepare_pilot_review'),root,'--json'],{encoding:'utf8'});
+  assert.equal(prepared.status,0,prepared.stdout);
+  const p=JSON.parse(prepared.stdout),hashes=Object.fromEntries(p.chapters.map(c=>[String(c.chapterNumber),c.sha256]));
+  rfile(root,'pilot-source.json',{
+    schemaVersion:1,revision:p.revision,manuscriptHashes:hashes,
+    reviewer:{kind:'independent_agent',runId:'pilot-editor'},
+    decision:'pass_candidate',summary:'测试报告，用于 Pilot 状态机校验。',
+    issues:[],strengths:['有烟火气','人物有选择','冲突推动关系']
+  });
+  const submitted=spawnSync(process.execPath,[script('submit_pilot_review'),root,'pilot-source.json','--json'],{encoding:'utf8'});
+  assert.equal(submitted.status,0,submitted.stdout);
+  const pg=read(root).v3.pilotGate;
+  rfile(root,'pilot-approval.json',{
+    schemaVersion:1,approved:true,revision:pg.revision,
+    reviewSha256:pg.reviewSha256,
+    quote:'我明确批准这三个试读章节继续写第四章。',source:'fixture-not-real-author',
+    approvedAt:'2026-11-24T01:00:00Z'
+  });
+  const approved=spawnSync(process.execPath,[script('record_pilot_approval'),root,
+    '--evidence','pilot-approval.json','--json'],{encoding:'utf8'});
+  assert.equal(approved.status,0,approved.stdout);
+  const allow=g(4);
+  assert.equal(allow.status,0,allow.stdout);
+});
