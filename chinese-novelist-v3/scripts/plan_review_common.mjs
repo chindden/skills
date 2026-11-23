@@ -74,6 +74,7 @@ export function validatePlanReview(root,report,packet,role,other=null){
 export function verifyPlanGate(root,plan){
   const g=plan.v3?.planGate,errors=[];
   if(g?.schemaVersion!==1)return ['PLAN_GATE_NOT_ENABLED'];
+  if(plan.v3?.creativeDecision!=='accepted'||plan.v3?.storyPlanApproved!==true)errors.push('PLAN_AUTHOR_CONSENT_STATE_MISSING');
   if(g.status!=='passed'||g.humanApproved!==true||!g.approvedAt)
     errors.push('PLAN_REVIEW_NOT_APPROVED');
   const ip=safeFile(root,g.inputPath);

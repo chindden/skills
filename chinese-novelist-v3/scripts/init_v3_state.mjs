@@ -10,7 +10,7 @@ const rootArg = process.argv[2], asJson = process.argv.includes('--json');
 const enableR2 = process.argv.includes('--enable-r2');
 const enablePlanGate = process.argv.includes('--enable-plan-gate');
 try {
-  if (!rootArg || process.argv.slice(3).some(x=>!['--json','--enable-r2','--enable-plan-gate'].includes(x))) throw new Error('Usage: init_v3_state.mjs <project-dir> [--json]');
+  if (!rootArg || process.argv.slice(3).some(x=>!['--json','--enable-r2','--enable-plan-gate'].includes(x))) throw new Error('Usage: init_v3_state.mjs <project-dir> [--json] [--enable-r2] [--enable-plan-gate]');
   const root=projectRoot(rootArg), plan=readPlan(root);
   if (plan.v3) {
     if(plan.v3.schemaVersion !== 1)throw new Error('Existing unsupported v3 schemaVersion; refuse to overwrite');

@@ -54,6 +54,9 @@ try{
   assert.ok(fs.existsSync(path.join(root,'reviews/plan/input-v1.json')));
   assert.ok(fs.existsSync(path.join(root,'reviews/plan/input-v2.json')));
   const hash=prep.data.artifactHashes;
+  const badQuote=report('architecture',2,hash,'revise',[{...defect,quote:'没有在源大纲中出现的捏造原文'}]);
+  fs.writeFileSync(path.join(root,'review-a.json'),JSON.stringify(badQuote));
+  assert.match(run('plan_review','submit','--role','architecture','--report','review-a.json').data.error,/PLAN_ISSUE_QUOTE_UNVERIFIED/);
   fs.writeFileSync(path.join(root,'review-a.json'),JSON.stringify(report('architecture',2,hash)));
   assert.equal(run('plan_review','submit','--role','architecture','--report','review-a.json').data.status,'under_review');
   const duplicate=report('reader',2,hash);duplicate.reviewer.contextId='fixture-context-architecture-2';
@@ -75,6 +78,9 @@ try{
   assert.equal(read().v3.storyPlanApproved,true);
   assert.equal(run('plan_review','verify').code,0);
   assert.equal(run('v3_gate','--chapter','1','--json').code,0);
+  let toggled=read();toggled.v3.storyPlanApproved=false;save(toggled);
+  assert.ok(run('plan_review','verify').data.issues.includes('PLAN_AUTHOR_CONSENT_STATE_MISSING'));
+  toggled.v3.storyPlanApproved=true;save(toggled);
   fs.appendFileSync(path.join(root,'01-大纲.md'),'未经批准的蓝图修改');
   assert.ok(run('v3_gate','--chapter','1','--json').data.issues.some(i=>i.code==='PLAN_BLUEPRINT_CHANGED'));
   fs.writeFileSync(path.join(root,'01-大纲.md'),fs.readFileSync(path.join(root,'01-大纲.md'),'utf8').replace('未经批准的蓝图修改',''));
