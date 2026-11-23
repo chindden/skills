@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import {projectRoot,readPlan,safeFile,pilotHashes,sameHashes,sha256,structuredReportValid} from './v3_common.mjs';
 import {checkGate} from './r2_review_common.mjs';
+import {verifyPlanGate} from './plan_review_common.mjs';
 
 const args=process.argv.slice(2),folder=args[0],chapterIndex=args.indexOf('--chapter');
 const finalizeIndex=args.indexOf('--finalize');
@@ -28,6 +29,8 @@ if(!folder||!Number.isSafeInteger(chapter)||chapter<1||(finalize&&(!Number.isSaf
     if(plan.v3?.schemaVersion!==1)fail('NO_V3_STATE','V3 状态缺失或版本不符');
     if(plan.v3?.creativeDecision!=='accepted')fail('CREATIVE_NOT_APPROVED','创意未确认');
     if(plan.v3?.storyPlanApproved!==true)fail('STORY_PLAN_NOT_APPROVED','蓝图未确认');
+    // Legacy R2 projects have no planGate; fresh V3 projects cannot bypass a version-bound plan review.
+    if(plan.v3?.planGate)for(const issue of verifyPlanGate(root,plan))fail(issue,'Stage 2 规划审核、版本冻结或作者批准无效');
     if(chapter>=4){
       const gate=plan.v3?.pilotGate||{};
       if(gate.status!=='passed')fail('PILOT_NOT_PASSED','前三章门禁未通过');
