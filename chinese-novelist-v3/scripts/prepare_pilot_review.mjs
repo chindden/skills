@@ -3,14 +3,22 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {projectRoot,readPlan,atomicWritePlan,pilotHashes} from './v3_common.mjs';
+import {hasR3Namespace} from './r3_state_common.mjs';
+import {verifyR3Plan} from './r3_plan_common.mjs';
 
 const args=process.argv.slice(2),folder=args[0],restart=args.includes('--restart');
 try {
   if(!folder || args.slice(1).some(x=>!['--json','--restart'].includes(x)))
     throw new Error('Usage: prepare_pilot_review.mjs <project-dir> [--restart] [--json]');
   const root=projectRoot(folder),plan=readPlan(root);
-  if(plan.v3?.schemaVersion!==1||plan.v3.creativeDecision!=='accepted'||plan.v3.storyPlanApproved!==true)
+  if(plan.v3?.schemaVersion!==1||plan.v3.creativeDecision!=='accepted')
     throw new Error('CREATIVE_AND_PLAN_APPROVAL_REQUIRED');
+  if(hasR3Namespace(plan)){
+    const issues=verifyR3Plan(root,plan,3);
+    if(issues.length)throw new Error('R3_PLAN_APPROVAL_REQUIRED: '+issues.join(','));
+  }else if(plan.v3.storyPlanApproved!==true){
+    throw new Error('CREATIVE_AND_PLAN_APPROVAL_REQUIRED');
+  }
   const gate=plan.v3.pilotGate||{};
   if(['under_review','awaiting_approval','passed'].includes(gate.status)&&!restart)
     throw new Error('REVIEW_ALREADY_IN_PROGRESS_OR_PASSED: use --restart only after deliberate revision');
