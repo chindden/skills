@@ -1,0 +1,27 @@
+name: Chinese Novelist R3 routing tests
+
+on:
+  push:
+    branches:
+      - feat/chinese-novelist-r3-experiment
+    paths:
+      - 'chinese-novelist-v3/**'
+      - '.github/workflows/chinese-novelist-r3.yml'
+  pull_request:
+    paths:
+      - 'chinese-novelist-v3/**'
+      - '.github/workflows/chinese-novelist-r3.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  r3-routing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify R3 opt-in, legacy routing, and fail-closed gate
+        run: node --test chinese-novelist-v3/tests/r3-routing.test.mjs
