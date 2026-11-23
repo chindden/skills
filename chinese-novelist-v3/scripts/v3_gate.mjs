@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import {projectRoot,readPlan,safeFile,pilotHashes,sameHashes,sha256,structuredReportValid} from './v3_common.mjs';
 import {checkGate} from './r2_review_common.mjs';
 import {verifyPlanGate} from './plan_review_common.mjs';
+import {hasR3Namespace} from './r3_state_common.mjs';
 
 const args=process.argv.slice(2),folder=args[0],chapterIndex=args.indexOf('--chapter');
 const finalizeIndex=args.indexOf('--finalize');
@@ -26,6 +27,12 @@ if(!folder||!Number.isSafeInteger(chapter)||chapter<1||(finalize&&(!Number.isSaf
   try {root=projectRoot(folder);plan=readPlan(root);}
   catch(e){fail('READ_ERROR',e.message);done('error',folder);}
   if(plan){
+    // An explicitly opted-in R3 project must never fall through to legacy R2 gates.
+    // P0-07 will install the independently verified R3 gate; until then fail closed.
+    if(hasR3Namespace(plan)){
+      fail('R3_GATE_NOT_READY','R3 experimental gate is not implemented yet; R2 approval must not authorize R3 writing');
+      done('blocked',root);
+    }else{
     if(plan.v3?.schemaVersion!==1)fail('NO_V3_STATE','V3 状态缺失或版本不符');
     if(plan.v3?.creativeDecision!=='accepted')fail('CREATIVE_NOT_APPROVED','创意未确认');
     if(plan.v3?.storyPlanApproved!==true)fail('STORY_PLAN_NOT_APPROVED','蓝图未确认');
@@ -73,5 +80,6 @@ if(!folder||!Number.isSafeInteger(chapter)||chapter<1||(finalize&&(!Number.isSaf
     try {for(const code of checkGate(root,plan,chapter,finalize))fail(code,'R2 independent chapter/milestone review gate');}
     catch(e){fail('R2_CHECK_ERROR',e.message);}
     done(issues.length?'blocked':'allowed',root);
+    }
   }
 }
