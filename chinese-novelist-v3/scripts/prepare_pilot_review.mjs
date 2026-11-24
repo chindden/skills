@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /** Seal chapter hashes and prepare a versioned handoff for independent review. */
 import fs from 'node:fs';
+import {p1State,priorStrengths} from './r3_p1_common.mjs';
 import path from 'node:path';
-import {projectRoot,readPlan,atomicWritePlan,pilotHashes} from './v3_common.mjs';
+import {projectRoot,readPlan,atomicWritePlan,pilotHashes,sha256} from './v3_common.mjs';
 import {hasR3Namespace} from './r3_state_common.mjs';
 import {assertR3PilotPrerequisites} from './r2_review_common.mjs';
 
@@ -27,13 +28,17 @@ try {
   const chapters=plan.chapters.filter(c=>[1,2,3].includes(c.chapterNumber))
     .sort((a,b)=>a.chapterNumber-b.chapterNumber)
     .map(c=>({chapterNumber:c.chapterNumber,filePath:c.filePath,sha256:hashes[String(c.chapterNumber)]}));
+  const p1=p1State(plan);
   const packet={schemaVersion:1,revision,createdAt:new Date().toISOString(),chapters,
+    ...(p1?{p1Protocol:1,priorStrengths:priorStrengths(root,gate)}:{}),
     note:'Editor must read original chapters and settings independently; self-ratings are excluded.'};
   const reviewFile=path.join(root,reviewRel);
   fs.mkdirSync(path.dirname(reviewFile),{recursive:true});
-  fs.writeFileSync(reviewFile,JSON.stringify(packet,null,2)+'\n',{flag:'wx'});
+  const packetBytes=Buffer.from(JSON.stringify(packet,null,2)+'\n');
+  fs.writeFileSync(reviewFile,packetBytes,{flag:'wx'});
   plan.v3.pilotGate={
     ...gate,status:'under_review',revision,reviewInputPath:reviewRel,reviewPath:null,reviewSha256:null,
+    ...(p1?{reviewInputSha256:sha256(packetBytes)}:{}),
     reviewedChapterHashes:hashes,reviewDecision:null,humanApproved:false,approvedAt:null,approvalPath:null,approvalSha256:null
   };
   atomicWritePlan(root,plan);
