@@ -3,11 +3,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {projectRoot,readPlan,safeFile,readJsonFile,atomicWritePlan,pilotHashes,sameHashes,sha256,structuredReportValid} from './v3_common.mjs';
+import {assertR3PilotPrerequisites} from './r2_review_common.mjs';
 const args=process.argv.slice(2),rootArg=args[0],sourceArg=args[1];
 try {
   if(!rootArg||!sourceArg||args.slice(2).some(x=>x!=='--json'))throw new Error('Usage: submit_pilot_review.mjs <project> <editor-report.json-relative-path> [--json]');
   const root=projectRoot(rootArg),plan=readPlan(root),gate=plan.v3?.pilotGate;
   if(gate?.status!=='under_review'||!Number.isSafeInteger(gate.revision)||gate.revision<1)throw new Error('REVIEW_NOT_PREPARED');
+  assertR3PilotPrerequisites(root,plan);
   const source=safeFile(root,sourceArg);
   if(!source)throw new Error('REPORT_MUST_BE_EXISTING_PROJECT_FILE');
   const packet=readJsonFile(root,gate.reviewInputPath);
