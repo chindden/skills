@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import {verifyP1Registration} from './r3_p1_common.mjs';
+import {verifyP1Registration,p1State} from './r3_p1_common.mjs';
 import {safeFile,sha256} from './v3_common.mjs';
 import {hasR3Namespace,validR3Namespace} from './r3_state_common.mjs';
 import {verifyR3Plan} from './r3_plan_common.mjs';
@@ -20,7 +20,7 @@ export function hashes(root,plan,numbers){
 }
 export const equal=(a,b)=>!!a&&!!b&&Object.keys(a).length===Object.keys(b).length&&
   Object.keys(b).every(k=>a[k]===b[k]&&/^[0-9a-f]{64}$/.test(a[k]));
-export function validate(report,packet){
+export function validate(report,packet,allowP1=false){
   const errors=[];
   if(report?.schemaVersion!==1||report.kind!==packet.kind||
       report.end!==packet.end||report.revision!==packet.revision)
@@ -52,7 +52,7 @@ export function validate(report,packet){
     }
     if(report.decision==='pass_candidate'&&report.issues.some(i=>
       (i.status==='open'&&['BLOCKER','MAJOR'].includes(i.severity)&&
-        !(packet.p1Protocol===1&&packet.kind==='chapter'&&i.severity==='MAJOR'&&
+        !(allowP1&&packet.p1Protocol===1&&packet.kind==='chapter'&&i.severity==='MAJOR'&&
           i.classification==='B'&&i.disposition==='fix_in_arc'))||
       (i.status==='accepted'&&i.severity==='BLOCKER')))errors.push('R2_UNRESOLVED_ISSUES');
   }
@@ -79,7 +79,7 @@ export function verify(root,plan,kind,end){
   }
   const registration=verifyP1Registration(root,plan,kind,end,record,packet);
   if(registration)return registration+'_'+key(kind,end);
-  if(validate(report,packet).length||report.decision!=='pass_candidate')
+  if(validate(report,packet,!!p1State(plan)).length||report.decision!=='pass_candidate')
     return 'R2_REPORT_INVALID_'+key(kind,end);
   return null;
 }
