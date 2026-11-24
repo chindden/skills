@@ -313,3 +313,35 @@ test('restoring exact approved core and volume bytes restores gate without forgi
   fs.writeFileSync(path.join(root,'01-大纲.md'),outline);
   assert.equal(run(root,'verify','--chapter','1').code,0);
 });
+
+
+test('core review verdict is order-independent: one revise and one pass always remains revise',t=>{
+  for(const order of [['architecture','reader'],['reader','architecture']]){
+    const root=fixture(t);
+    const prepared=run(root,'core-prepare','--planner-run-id','writer1','--planner-context-id','writer-context');
+    assert.equal(prepared.code,0);
+    const packet=JSON.parse(fs.readFileSync(path.join(root,prepared.data.inputPath),'utf8'));
+    for(const role of order){
+      const decision=role==='architecture'?'revise':'pass_candidate';
+      const source=report(role,packet,decision);
+      if(decision==='revise')source.issues=[{
+        id:'ARCH-01',severity:'MAJOR',status:'open',artifact:'01-core.md',
+        quote:'核心能力不能读心。',reason:'测试：信息来源仍需核对。',
+        suggestion:'明确不读心场景中的推理依据。',
+        evidenceLevel:'causal_break',
+        reverseDefense:'不能预先假定缺陷成立，须依据已有原文辨别合理留白。'
+      }];
+      const file='independent-'+role+'.json';
+      rfile(root,file,source);
+      const registered=run(root,'core-submit','--role',role,'--report',file);
+      assert.equal(registered.code,0,JSON.stringify(registered.data));
+    }
+    const state=read(root).v3.r3.corePlan;
+    assert.equal(state.status,'revise',order.join(' -> '));
+    assert.equal(state.reviews.architecture.decision,'revise');
+    assert.equal(state.reviews.reader.decision,'pass_candidate');
+    const approval=run(root,'core-approve','--evidence','not-submitted.json');
+    assert.equal(approval.code,2);
+    assert.equal(approval.data.error,'R3_CORE_REVIEWS_NOT_PASSED');
+  }
+});
