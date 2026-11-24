@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {projectRoot,readPlan,atomicWritePlan,pilotHashes} from './v3_common.mjs';
 import {hasR3Namespace} from './r3_state_common.mjs';
-import {verifyR3Plan} from './r3_plan_common.mjs';
+import {assertR3PilotPrerequisites} from './r2_review_common.mjs';
 
 const args=process.argv.slice(2),folder=args[0],restart=args.includes('--restart');
 try {
@@ -14,8 +14,7 @@ try {
   if(plan.v3?.schemaVersion!==1||plan.v3.creativeDecision!=='accepted')
     throw new Error('CREATIVE_AND_PLAN_APPROVAL_REQUIRED');
   if(hasR3Namespace(plan)){
-    const issues=verifyR3Plan(root,plan,3);
-    if(issues.length)throw new Error('R3_PLAN_APPROVAL_REQUIRED: '+issues.join(','));
+    assertR3PilotPrerequisites(root,plan);
   }else if(plan.v3.storyPlanApproved!==true){
     throw new Error('CREATIVE_AND_PLAN_APPROVAL_REQUIRED');
   }
