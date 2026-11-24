@@ -515,7 +515,7 @@ const p1meta=(extra={})=>({schemaVersion:1,literaryStatus:'UNVERIFIED',preserveS
 const strength=(n,id='STR1')=>({id,status:'observed',chapter:n,quote:chapterQuote(n),reason:'有实际代价选择'});
 const threeStrengths=()=>[1,2,3].map(n=>strength(n,'STR'+n));
 const issue=(n,extra={})=>({id:'ISS-'+n,severity:'MINOR',status:'open',chapter:n,quote:chapterQuote(n),
-  reason:'局部措辞不顺',suggestion:'完本定向复核',classification:'C',evidenceLevel:'narrative_risk',
+  reason:'局部措辞不顺',suggestion:'完本定向复核',classification:'C',evidenceLevel:'narrative_risk',evidenceBasis:'reasonable_inference',
   disposition:'defer_to_final',subject:'灵米',key:'归属',factId:null,...extra});
 function p1New(t,end=4){
   const root=fixture(t);approvedCore(root);approvedVolume(root,1,1,end);
