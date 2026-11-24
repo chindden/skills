@@ -135,6 +135,17 @@ export function prepare(root,base,oldName,newName,candidate,changed){
   const index=buildIndex(r.index.version+1,themes);
   return {base,baseSha256:hash(canon(r.index)),candidateSha256:digestTheme(t),name:'00-INDEX-v'+index.version+'.md',indexText:renderIndex(index),...delta};
 }
+// Selective read: index is a locator only; compare the complete selected theme with its referenced digest and metadata.
+export function checkRef(indexText,filename,themeText){
+  const ix=parseIndex(indexText),ref=ix.refs.find(r=>r.file===filename);
+  if(!ref)fail('DRIVE_EXP_UNPUBLISHED_THEME');
+  const t=parseTheme(themeText),single=buildIndex(ix.version,{[filename]:t});
+  if(ref.sha256!==single.refs[0].sha256||canon(ix.entries.filter(e=>e.file===filename))!==canon(single.entries))fail('DRIVE_EXP_INDEX_INCONSISTENT');
+  return {entries:t.entries.filter(e=>['supported','mature'].includes(e.status)),excluded:t.entries.filter(e=>['candidate','retired'].includes(e.status)).map(e=>e.id)};
+}
+export function confirmBase(root,name,digest){
+  const r=resolve(root);if(r.name!==name||hash(canon(r.index))!==digest)fail('DRIVE_EXP_BASE_CONFLICT');return {status:'base_matches',name};
+}
 function walk(root,rel=''){
   const dir=rel?path.join(root,rel):root;safeDir(dir);
   return fs.readdirSync(dir).sort().flatMap(n=>{
@@ -145,11 +156,43 @@ function walk(root,rel=''){
   });
 }
 const manifestName='manifest.json';
+function verifyHistory(root,current,files){
+  const all=[...files],lookup=new Map();
+  for(const n of all){
+    const base=path.basename(n);
+    if(!themeName.test(base)&&!indexName.test(base))continue;
+    if(lookup.has(base))fail('DRIVE_EXP_DUP_HISTORY_FILE');
+    lookup.set(base,n);
+  }
+  const indexes=[...lookup.keys()].filter(n=>indexName.test(n)).sort((a,b)=>Number(a.match(indexName)[1])-Number(b.match(indexName)[1]));
+  if(indexes.length!==current.index.version)fail('DRIVE_EXP_HISTORY_GAP');
+  let prior=null;
+  const referenced=new Set(indexes);
+  for(let i=0;i<indexes.length;i++){
+    const name=indexes[i],ix=parseIndex(readText(path.join(root,lookup.get(name))));
+    if(ix.version!==i+1||name!=='00-INDEX-v'+(i+1)+'.md')fail('DRIVE_EXP_HISTORY_GAP');
+    const themes={};
+    for(const ref of ix.refs){const loc=lookup.get(ref.file);if(!loc)fail('DRIVE_EXP_HISTORY_THEME_MISSING');referenced.add(ref.file);themes[ref.file]=parseTheme(readText(path.join(root,loc)))}
+    if(canon(ix)!==canon(buildIndex(ix.version,themes)))fail('DRIVE_EXP_HISTORY_INDEX_INCONSISTENT');
+    if(prior){
+      const before=new Map(Object.values(prior).flatMap(t=>t.entries.map(e=>[e.id,e])));
+      const after=new Map(Object.values(themes).flatMap(t=>t.entries.map(e=>[e.id,e])));
+      for(const [id,e] of before){
+        const n=after.get(id);if(!n)fail('DRIVE_EXP_HISTORY_ENTRY_LOST');
+        if(canon(e)!==canon(n)&&(n.revision!==e.revision+1||e.status==='retired'&&n.status!=='retired'||e.evidence.some(x=>!n.evidence.some(y=>canon(x)===canon(y)))))fail('DRIVE_EXP_HISTORY_REVISION');
+      }
+      for(const [id,e] of after)if(!before.has(id)&&e.revision!==1)fail('DRIVE_EXP_HISTORY_REVISION');
+    }
+    prior=themes;
+  }
+  if([...lookup.keys()].some(n=>!referenced.has(n)))fail('DRIVE_EXP_HISTORY_UNREFERENCED');
+}
 function backupFiles(root){
   const current=resolve(root),files=walk(root).filter(n=>n!==manifestName);
   // Export only clean, committed root and history; never accidentally include staging candidates.
   const allowed=new Set([current.name,...current.index.refs.map(r=>r.file),'README.md']);
   if(files.some(n=>!allowed.has(n)&&!/^archive\/[A-Za-z0-9][A-Za-z0-9_.-]*\.md$/.test(n)))fail('DRIVE_EXP_BACKUP_UNCOMMITTED_OR_EXTRA');
+  verifyHistory(root,current,files);
   return files.map(n=>{const b=safeRead(path.join(root,n));return {path:n,bytes:b.length,sha256:hash(b)}});
 }
 export function seal(dir){
@@ -178,11 +221,13 @@ function main(){
   else if(a==='inspect-experiment'&&p&&!args.length)result=parseTheme(readText(p),{experimental:true});
   else if(a==='index'&&p&&args.length>=2)result=renderIndex(buildIndex(Number(args[0]),themesAt(safeDir(p),args.slice(1))));
   else if(a==='resolve'&&p&&!args.length)result=resolve(p);
+  else if(a==='check-ref'&&p&&args.length===2)result=checkRef(readText(p),args[0],readText(args[1]));
+  else if(a==='confirm-base'&&p&&args.length===2)result=confirmBase(p,args[0],args[1]);
   else if(a==='prepare'&&p&&args.length>=5)result=prepare(p,args[0],args[1],args[2],readText(args[3]),args.slice(4));
   else if(a==='seal'&&p&&!args.length)result=seal(p);
   else if(a==='verify'&&p&&!args.length)result=verify(p);
   else if(a==='restore'&&p&&args.length===1)result=restore(p,args[0]);
-  else fail('Usage: render-theme JSON | validate FILE | inspect-experiment FILE | index DIR VERSION THEME... | resolve DIR | prepare DIR BASE_INDEX OLD_THEME NEW_THEME CANDIDATE CHANGED_ID... | seal DIR | verify DIR | restore DIR NEW_DIR');
+  else fail('Usage: render-theme JSON | validate FILE | inspect-experiment FILE | index DIR VERSION THEME... | resolve DIR | check-ref INDEX THEME_NAME THEME_FILE | confirm-base DIR INDEX DIGEST | prepare DIR BASE_INDEX OLD_THEME NEW_THEME CANDIDATE CHANGED_ID... | seal DIR | verify DIR | restore DIR NEW_DIR');
   console.log(typeof result==='string'?result:JSON.stringify(result,null,2));
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href){try{main()}catch(e){console.error(e.message);process.exitCode=2}}
