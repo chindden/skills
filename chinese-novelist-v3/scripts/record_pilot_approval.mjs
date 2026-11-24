@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {projectRoot,readPlan,safeFile,readJsonFile,atomicWritePlan,pilotHashes,sameHashes,sha256,structuredReportValid} from './v3_common.mjs';
+import {assertR3PilotPrerequisites} from './r2_review_common.mjs';
 const args=process.argv.slice(2),rootArg=args[0],idx=args.indexOf('--evidence');
 try {
   if(!rootArg||idx<0||typeof args[idx+1]!=='string'||args.some((x,i)=>x.startsWith('--')&&!['--json','--evidence'].includes(x))) {
@@ -12,6 +13,7 @@ try {
   }
   const root=projectRoot(rootArg),plan=readPlan(root),gate=plan.v3?.pilotGate;
   if(gate?.status!=='awaiting_approval'||gate.reviewDecision!=='pass_candidate')throw new Error('NO_PASS_CANDIDATE_REVIEW');
+  assertR3PilotPrerequisites(root,plan);
   const reviewFile=safeFile(root,gate.reviewPath);
   if(!reviewFile)throw new Error('REVIEW_MISSING');
   const bytes=fs.readFileSync(reviewFile);
