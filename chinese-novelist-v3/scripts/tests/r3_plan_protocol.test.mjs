@@ -584,11 +584,12 @@ test('P1 review refuses hard causal deferral, invented quotations, missing defen
   const b=issue(1,{id:'B1',severity:'MAJOR',classification:'B',disposition:'fix_in_arc',
     subject:'人物',key:'动机',reverseDefense:{chapter:1,quote:chapterQuote(1),reason:'尝试现有解释'}});
   for(const [patch,pattern] of [
-    [{...b,classification:'A'},/HARD_CAUSAL_FLOOR/],
+    [{...b,classification:'A'},/HARD_CAUSAL_FLOOR|R2_UNRESOLVED_ISSUES/],
     [{...b,evidenceLevel:'causal_break'},/CAUSAL_BREAK_MUST_FIX_NOW/],
     [{...b,reverseDefense:null},/REVERSE_DEFENSE_REQUIRED/],
     [{...b,quote:'不存在的引文'},/EVIDENCE_OR_DISPOSITION/]
   ])jsonBad(p1Submit(root,{...r,issues:[patch]}),pattern);
+  jsonBad(p1Submit(root,{...r,decision:'revise',issues:[{...b,classification:'A'}]}),/HARD_CAUSAL_FLOOR/);
   jsonBad(p1Submit(root,{...r,p1:undefined}),/REPORT_FIELDS_INVALID/);
   jsonOk(p1Submit(root,{...r,issues:[b,issue(1)],p1:p1meta({preserveStrengths:[strength(1)]})}));
   bindChapter(root,1);jsonOk(p1gate(root,2));
