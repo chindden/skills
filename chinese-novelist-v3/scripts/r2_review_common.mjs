@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import {continuityIssues} from './r3_continuity_common.mjs';
 import {verifyP1Registration,p1State} from './r3_p1_common.mjs';
 import {safeFile,sha256} from './v3_common.mjs';
 import {hasR3Namespace,validR3Namespace} from './r3_state_common.mjs';
@@ -110,4 +111,6 @@ export function assertR3PilotPrerequisites(root,plan){
   if(planning.length)throw new Error('R3_PLAN_APPROVAL_REQUIRED: '+planning.join(','));
   const chapters=checkGate(root,plan,4);
   if(chapters.length)throw new Error('R3_PILOT_CHAPTER_REVIEWS_REQUIRED: '+chapters.join(','));
+  const bindings=continuityIssues(root,plan,3);
+  if(bindings.length)throw new Error(bindings.join(','));
 }
