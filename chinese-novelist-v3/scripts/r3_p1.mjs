@@ -6,7 +6,7 @@ import {projectRoot,readPlan,readJsonFile,atomicWritePlan,safeFile,sha256} from 
 import {validR3Namespace} from './r3_state_common.mjs';
 import {checkGate,verify} from './r2_review_common.mjs';
 import {verifyCore,verifyVolume} from './r3_plan_common.mjs';
-import {p1State,nonempty,readFeedback,p1GateIssues,digest} from './r3_p1_common.mjs';
+import {p1State,nonempty,readFeedback,p1GateIssues,digest,legacyCandidates} from './r3_p1_common.mjs';
 import {bindingInput,verifyBinding,continuityIssues,recentSources} from './r3_continuity_common.mjs';
 import {createSnapshot,snapshotText} from './r3_snapshots.mjs';
 import {momentum,cascadeWarnings} from './r3_feedback_view.mjs';
@@ -51,7 +51,7 @@ function activate(root,plan){
       if(rec.status!=='passed'||Number(end)>upto)fail('R3_P1_FINISH_PENDING_REVIEW_FIRST');
       const issue=verify(root,plan,kind,Number(end));
       if(issue)fail(issue);
-      legacyReviews[kind+':'+end]={inputSha256:rec.inputSha256,reviewSha256:rec.reviewSha256};
+      legacyReviews[kind+':'+end]={inputSha256:rec.inputSha256,reviewSha256:rec.reviewSha256,reviewPath:rec.reviewPath};
     }
   }
   const pilot=plan.v3.pilotGate;
@@ -60,7 +60,7 @@ function activate(root,plan){
   if(['awaiting_approval','passed'].includes(pilot?.status)){
     const f=safeFile(root,pilot.reviewPath);
     if(!f||sha256(fs.readFileSync(f))!==pilot.reviewSha256)fail('R3_P1_LEGACY_PILOT_CHANGED');
-    legacyPilot={revision:pilot.revision,reviewSha256:pilot.reviewSha256};
+    legacyPilot={revision:pilot.revision,reviewSha256:pilot.reviewSha256,reviewPath:pilot.reviewPath};
   }
   plan.v3.r3.p1={schemaVersion:1,projectId:id,baselineUpto:upto,legacyReviews,legacyPilot,reviewHistory:[]};
   atomicWritePlan(root,plan);
@@ -123,7 +123,7 @@ try{
       const l=readLedger(root),f=readFeedback(root,plan,{upto:n});
       const issues=continuityIssues(root,plan,n,l);
       out({status:issues.length?'needs_reconciliation':'ready',upto:n,issues,
-        dueIssues:p1GateIssues(root,plan,n+1),deferredIssues:f.deferredIssues,
+        dueIssues:p1GateIssues(root,plan,n+1),deferredIssues:f.deferredIssues,legacyCandidates:legacyCandidates(root,plan),
         momentum:momentum(f,l,n),recentSources:recentSources(root,plan,n),literaryStatus:'UNVERIFIED'});
       process.exitCode=issues.length?1:0;
     }else{
