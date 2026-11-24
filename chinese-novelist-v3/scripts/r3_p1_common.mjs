@@ -9,6 +9,7 @@ export function p1State(plan){
   if(!r||!Object.hasOwn(r,'p1'))return null;
   const s=r.p1;
   if(!s||s.schemaVersion!==1||!Number.isSafeInteger(s.baselineUpto)||s.baselineUpto<0||
+    !nonempty(s.projectId)||!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/.test(s.projectId)||
     !s.legacyReviews||typeof s.legacyReviews!=='object'||Array.isArray(s.legacyReviews)||
     !Array.isArray(s.reviewHistory))fail('R3_P1_STATE_INVALID');
   return s;
@@ -38,7 +39,7 @@ export function readFeedback(root,plan,{upto=Infinity}={}){
     const source={path:item.path,sha256:item.sha256,kind:item.kind,end:item.end,revision:item.revision};
     for(const f of r.p1.followUps){
       const old=issues.get(f.trackingId);
-      if(!old)fail('R3_P1_UNKNOWN_FOLLOWUP_'+f.trackingId);
+      if(!old){if(upto!==Infinity)continue;fail('R3_P1_UNKNOWN_FOLLOWUP_'+f.trackingId);}
       issues.set(f.trackingId,{...old,status:f.status,resolution:{...f,source}});
     }
     for(const i of r.issues){
@@ -50,8 +51,14 @@ export function readFeedback(root,plan,{upto=Infinity}={}){
         disposition:i.disposition,status:i.status==='resolved'?'resolved':'open',
         dueChapter:i.disposition==='fix_in_arc'?Math.ceil(i.chapter/3)*3:null,references});
     }
-    signals.push(...r.p1.signals.map(x=>({...x,source})));
-    strengths.push(...r.p1.preserveStrengths.map(x=>({...x,source})));
+    const current=item.kind==='pilot'?plan.v3?.pilotGate:
+      plan.v3?.r2?.[item.kind==='chapter'?'chapterReviews':'arcReviews']?.[String(item.end)];
+    // Old review versions remain provenance for outstanding issues, but not
+    // current literary signals or strengths after the underlying text changes.
+    if(current?.reviewSha256===item.sha256&&current.revision===item.revision){
+      signals.push(...r.p1.signals.map(x=>({...x,source})));
+      strengths.push(...r.p1.preserveStrengths.map(x=>({...x,source})));
+    }
   }
   return {deferredIssues:[...issues.values()],signals,strengths};
 }
@@ -59,9 +66,24 @@ export function dueIssues(root,plan,upto){
   return readFeedback(root,plan,{upto}).deferredIssues.filter(i=>i.status==='open'&&
     i.disposition==='fix_in_arc'&&i.dueChapter<=upto);
 }
-export function p1GateIssues(root,plan,chapter){
+export function p1GateIssues(root,plan,chapter,finalize=false){
   if(!p1State(plan))return [];
-  return dueIssues(root,plan,chapter-1).map(i=>'R3_P1_ARC_FIX_DUE_'+i.trackingId);
+  const all=readFeedback(root,plan).deferredIssues;
+  return all.filter(i=>i.chapter<chapter&&i.status==='open'&&i.disposition==='fix_in_arc'&&
+    (finalize||i.dueChapter<chapter)).map(i=>'R3_P1_ARC_FIX_DUE_'+i.trackingId);
+}
+export function p1PilotIssues(root,plan){
+  const state=p1State(plan),gate=plan.v3?.pilotGate;
+  if(!state||!['passed','awaiting_approval'].includes(gate?.status))return [];
+  if(state.legacyPilot?.revision===gate.revision&&state.legacyPilot.reviewSha256===gate.reviewSha256)return [];
+  const ip=safeFile(root,gate.reviewInputPath);
+  if(!ip||sha256(fs.readFileSync(ip))!==gate.reviewInputSha256)return ['R3_P1_PILOT_INPUT_CHANGED'];
+  const packet=readJsonFile(root,gate.reviewInputPath);
+  if(packet.p1Protocol!==1||packet.revision!==gate.revision||
+    !state.reviewHistory.some(h=>h.kind==='pilot'&&h.end===3&&h.revision===gate.revision&&
+      h.path===gate.reviewPath&&h.sha256===gate.reviewSha256))
+    return ['R3_P1_PILOT_HISTORY_MISSING'];
+  return [];
 }
 export function checkP1Report(root,plan,report,kind,end,packet){
   const s=p1State(plan);if(!s)return;
@@ -87,6 +109,7 @@ export function checkP1Report(root,plan,report,kind,end,packet){
     if(['BLOCKER','MAJOR'].includes(i.severity)&&
       !(nonempty(i.reverseDefense?.reason)&&where(i.reverseDefense.chapter,i.reverseDefense.quote)))
       fail(label+'_REVERSE_DEFENSE_REQUIRED');
+    if(i.evidenceLevel==='causal_break'&&i.classification!=='A')fail(label+'_CAUSAL_BREAK_MUST_FIX_NOW');
     if(i.severity==='BLOCKER'||i.classification==='A'){
       if(i.classification!=='A'||i.severity==='MINOR'||i.disposition!=='fix_now'||i.status==='accepted'||
         (i.status==='open'&&report.decision==='pass_candidate'))fail(label+'_HARD_CAUSAL_FLOOR');
@@ -96,7 +119,7 @@ export function checkP1Report(root,plan,report,kind,end,packet){
           (i.disposition==='fix_now'||kind!=='chapter')))fail(label+'_ARC_RISK');
     }else if(i.classification==='C'){
       if(i.severity!=='MINOR'||!['fix_now','defer_to_final'].includes(i.disposition)||
-        (i.status==='open'&&i.disposition==='fix_now'&&report.decision==='pass_candidate'))fail(label+'_LOCAL_RISK');
+        (i.status!=='resolved'&&i.disposition==='fix_now'&&report.decision==='pass_candidate'))fail(label+'_LOCAL_RISK');
     }else if(i.disposition!=='keep_as_blank'||i.evidenceLevel!=='reasonable_blank'||
        i.status!=='accepted'||!nonempty(i.acceptanceReason))fail(label+'_BLANK');
     if(i.disposition==='fix_in_arc'||i.disposition==='defer_to_final'){
@@ -113,7 +136,7 @@ export function checkP1Report(root,plan,report,kind,end,packet){
   const known=readFeedback(root,plan).deferredIssues,followed=new Set();
   for(const f of p.followUps){
     const prior=known.find(i=>i.trackingId===f?.trackingId);
-    if(!prior||prior.status!=='open'||followed.has(f.trackingId)||keys.has(f.trackingId)||
+    if(!prior||prior.status!=='open'||prior.chapter>end||followed.has(f.trackingId)||keys.has(f.trackingId)||
       !['resolved','open'].includes(f.status)||!nonempty(f.reason)||!where(f.chapter,f.quote)||
       (f.status==='resolved'&&f.chapter<prior.chapter))fail('R3_P1_FOLLOWUP_INVALID');
     followed.add(f.trackingId);
