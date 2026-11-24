@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import {verifyP1Registration} from './r3_p1_common.mjs';
 import {safeFile,sha256} from './v3_common.mjs';
 import {hasR3Namespace,validR3Namespace} from './r3_state_common.mjs';
 import {verifyR3Plan} from './r3_plan_common.mjs';
@@ -50,7 +51,9 @@ export function validate(report,packet){
       ids.add(i.id);
     }
     if(report.decision==='pass_candidate'&&report.issues.some(i=>
-      (i.status==='open'&&['BLOCKER','MAJOR'].includes(i.severity))||
+      (i.status==='open'&&['BLOCKER','MAJOR'].includes(i.severity)&&
+        !(packet.p1Protocol===1&&packet.kind==='chapter'&&i.severity==='MAJOR'&&
+          i.classification==='B'&&i.disposition==='fix_in_arc'))||
       (i.status==='accepted'&&i.severity==='BLOCKER')))errors.push('R2_UNRESOLVED_ISSUES');
   }
   return errors;
@@ -74,6 +77,8 @@ export function verify(root,plan,kind,end){
     const snapIssue=verifyR3ManuscriptSnapshot(root,plan,kind,end,record,packet);
     if(snapIssue)return snapIssue+'_'+key(kind,end);
   }
+  const registration=verifyP1Registration(root,plan,kind,end,record,packet);
+  if(registration)return registration+'_'+key(kind,end);
   if(validate(report,packet).length||report.decision!=='pass_candidate')
     return 'R2_REPORT_INVALID_'+key(kind,end);
   return null;
