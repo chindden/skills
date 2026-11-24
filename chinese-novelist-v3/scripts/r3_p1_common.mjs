@@ -87,6 +87,9 @@ export function p1PilotIssues(root,plan){
 }
 export function checkP1Report(root,plan,report,kind,end,packet){
   const s=p1State(plan);if(!s)return;
+  if(kind==='pilot'&&(!nonempty(report.reviewer?.contextId)||report.reviewer.kind!=='independent_agent'||
+    !Array.isArray(packet?.writers)||packet.writers.length!==3||packet.writers.some(w=>
+      w.runId===report.reviewer.runId||w.contextId===report.reviewer.contextId)))fail('R3_P1_PILOT_INDEPENDENT_CONTEXT_REQUIRED');
   const p=report.p1,scope=scopeNumbers(kind,end),where=(n,q)=>quoteValid(root,plan,n,q,scope);
   if(p?.schemaVersion!==1||p.literaryStatus!=='UNVERIFIED'||!Array.isArray(p.preserveStrengths)||
     !Array.isArray(p.signals)||!Array.isArray(p.followUps)||!Array.isArray(p.revisionProtection))
@@ -183,4 +186,26 @@ export function verifyP1Registration(root,plan,kind,end,record,packet){
   if(!s.reviewHistory.some(h=>h.kind===kind&&h.end===end&&h.revision===record.revision&&
     h.path===record.reviewPath&&h.sha256===record.reviewSha256))return 'R3_P1_REVIEW_HISTORY_MISSING';
   return null;
+}
+
+/** Preserve pre-P1 nonblocking observations without inventing their disposition. */
+export function legacyCandidates(root,plan){
+  const s=p1State(plan);if(!s)return [];
+  const refs=[...Object.values(s.legacyReviews),...(s.legacyPilot?[s.legacyPilot]:[])],found=new Map();
+  for(const r of refs){
+    if(!r.reviewPath)continue;
+    const f=safeFile(root,r.reviewPath);
+    if(!f||sha256(fs.readFileSync(f))!==r.reviewSha256)fail('R3_P1_LEGACY_EVIDENCE_CHANGED');
+    const raw=readJsonFile(root,r.reviewPath);
+    for(const i of raw.issues??[]){
+      if(i.status==='resolved'||i.severity!=='MINOR')continue;
+      const key='L-'+digest([i.chapter,i.quote.replace(/\s+/g,' ').trim(),i.reason]).slice(0,24);
+      const old=found.get(key);
+      found.set(key,{...i,trackingId:key,status:'needs_triage',
+        sourceQuotePresent:quoteValid(root,plan,i.chapter,i.quote,[i.chapter]),
+        references:[...(old?.references??[]),{path:r.reviewPath,sha256:r.reviewSha256}],
+        note:'历史非阻断观察，须语义复核；不自动改写旧审稿或强制返工。'});
+    }
+  }
+  return [...found.values()];
 }
