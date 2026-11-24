@@ -242,7 +242,7 @@ test('R3 Pilot preparation requires core and first three chapter coverage, not l
 });
 
 
-test('full R3 Pilot path requires genuine-shaped chapter reviews, independent Pilot and author evidence',t=>{
+function readyPilot(t,lastDecision='pass_candidate'){
   const root=fixture(t);approvedCore(root);approvedVolume(root,1,1,4);
   const dir=path.join(root,'chapters');fs.mkdirSync(dir);
   const plan=read(root);
@@ -261,13 +261,18 @@ test('full R3 Pilot path requires genuine-shaped chapter reviews, independent Pi
     rfile(root,'chapter-review-'+n+'.json',{
       schemaVersion:1,kind:'chapter',end:n,revision:1,manuscriptHashes:pkt.manuscriptHashes,
       reviewer:{kind:'independent_agent',runId:'editor-'+n,contextId:'editorctx-'+n},
-      decision:'pass_candidate',summary:'测试报告占位，不代表真实文学审核。',issues:[]
+      decision:n===3?lastDecision:'pass_candidate',summary:'测试报告占位，不代表真实文学审核。',issues:n===3&&lastDecision==='revise'?[{id:'TIME-1',severity:'MAJOR',status:'open',chapter:3,quote:'第3章正式文本',reason:'测试时序冲突',suggestion:'测试定向修订'}]:[]
     });
     const submitted=spawnSync(process.execPath,[script('r2_review'),root,'submit',
       '--scope','chapter','--end',String(n),
       '--report','chapter-review-'+n+'.json'],{encoding:'utf8'});
     assert.equal(submitted.status,0,submitted.stdout);
   }
+  rfile(root,'story-ledger.json',{schemaVersion:1,facts:[],handoffs:[]});
+  return root;
+}
+test('full R3 Pilot path requires genuine-shaped chapter reviews, independent Pilot and author evidence',t=>{
+  const root=readyPilot(t);
   const g=(n)=>spawnSync(process.execPath,[script('v3_gate'),root,
     '--chapter',String(n),'--json'],{encoding:'utf8'});
   const deny=g(4);
@@ -344,4 +349,137 @@ test('core review verdict is order-independent: one revise and one pass always r
     assert.equal(approval.code,2);
     assert.equal(approval.data.error,'R3_CORE_REVIEWS_NOT_PASSED');
   }
+});
+
+const cli=(name,root,...args)=>spawnSync(process.execPath,[script(name),root,...args,'--json'],{encoding:'utf8'});
+function prepareCandidate(root){
+  const p=cli('prepare_pilot_review',root);
+  assert.equal(p.status,0,p.stdout);
+  const packet=JSON.parse(p.stdout);
+  rfile(root,'pilot-source.json',{
+    schemaVersion:1,revision:packet.revision,
+    manuscriptHashes:Object.fromEntries(packet.chapters.map(c=>[String(c.chapterNumber),c.sha256])),
+    reviewer:{kind:'independent_agent',runId:'pilot-fixture-editor'},
+    decision:'pass_candidate',summary:'测试候选，不代表真实文学审核。',issues:[],
+    strengths:['人物有选择','前后呼应','可继续读']
+  });
+}
+function writePilotApproval(root){
+  const pg=read(root).v3.pilotGate;
+  rfile(root,'pilot-approval.json',{schemaVersion:1,approved:true,revision:pg.revision,
+    reviewSha256:pg.reviewSha256,quote:'测试确认，非真实作者批准。',source:'fixture-not-real-author',
+    approvedAt:'2026-11-24T01:00:00Z'});
+}
+function denyPilot(root,name,args,pattern){
+  const before=fs.readFileSync(path.join(root,'02-写作计划.json'));
+  const x=cli(name,root,...args);
+  assert.equal(x.status,2,x.stdout);
+  assert.match(JSON.parse(x.stdout).error,pattern);
+  assert.deepEqual(fs.readFileSync(path.join(root,'02-写作计划.json')),before);
+}
+test('P0-F01: completed chapter with real revise report cannot prepare or restart Pilot',t=>{
+  const root=readyPilot(t,'revise');
+  assert.equal(read(root).v3.r2.chapterReviews['3'].status,'revise');
+  for(const args of [[],['--restart']]){
+    denyPilot(root,'prepare_pilot_review',args,/R2_REVIEW_NOT_PASSED_ch003/);
+  }
+  assert.ok(!fs.existsSync(path.join(root,'reviews/pilot-input-v1.json')));
+});
+test('P0-F01: missing review, stale manuscript, missing input/report or snapshot block Pilot before writes',t=>{
+  const root=readyPilot(t);
+  const original=read(root),rec=original.v3.r2.chapterReviews['3'];
+  const modified=structuredClone(original);delete modified.v3.r2.chapterReviews['3'];save(root,modified);
+  denyPilot(root,'prepare_pilot_review',[],/R2_REVIEW_NOT_PASSED_ch003/);save(root,original);
+  const incomplete=structuredClone(original);incomplete.chapters[2].wordCountPass=false;save(root,incomplete);
+  denyPilot(root,'prepare_pilot_review',[],/R2_PREVIOUS_INCOMPLETE_3/);save(root,original);
+  const chapter=path.join(root,'chapters/3.md'),bytes=fs.readFileSync(chapter);
+  fs.appendFileSync(chapter,'stale');
+  denyPilot(root,'prepare_pilot_review',[],/R2_MANUSCRIPT_CHANGED_ch003/);fs.writeFileSync(chapter,bytes);
+  for(const rel of [rec.inputPath,rec.reviewPath]){
+    const p=path.join(root,rel),b=fs.readFileSync(p);fs.unlinkSync(p);
+    denyPilot(root,'prepare_pilot_review',[],/R2_REVIEW_FILE_MISSING_ch003/);fs.writeFileSync(p,b);
+  }
+  const snap=path.join(root,rec.r3Snapshot.path,'chapter-0003.md'),b=fs.readFileSync(snap);
+  fs.appendFileSync(snap,'tamper');
+  denyPilot(root,'prepare_pilot_review',[],/R3_SNAPSHOT_HASH_MISMATCH_ch003/);fs.writeFileSync(snap,b);
+  assert.ok(!fs.existsSync(path.join(root,'reviews/pilot-input-v1.json')));
+  assert.equal(cli('prepare_pilot_review',root).status,0);
+});
+test('P0-F01: stale chapter evidence after preparation blocks Pilot report and author registration',t=>{
+  const root=readyPilot(t);prepareCandidate(root);
+  const original=read(root),modified=structuredClone(original);
+  modified.v3.r2.chapterReviews['3'].status='revise';save(root,modified);
+  denyPilot(root,'submit_pilot_review',['pilot-source.json'],/R2_REVIEW_NOT_PASSED_ch003/);
+  assert.ok(!fs.existsSync(path.join(root,'reviews/pilot-review-v1.json')));
+  save(root,original);
+  assert.equal(cli('submit_pilot_review',root,'pilot-source.json').status,0);
+  writePilotApproval(root);
+  const current=read(root),f=path.join(root,current.v3.r2.chapterReviews['1'].inputPath),b=fs.readFileSync(f);
+  fs.appendFileSync(f,' ');
+  denyPilot(root,'record_pilot_approval',['--evidence','pilot-approval.json'],/R2_REVIEW_CHANGED_ch001/);
+  assert.equal(read(root).v3.pilotGate.status,'awaiting_approval');
+  fs.writeFileSync(f,b);
+  assert.equal(cli('record_pilot_approval',root,'--evidence','pilot-approval.json').status,0);
+});
+const py=name=>fileURLToPath(new URL('../'+name+'.py',import.meta.url));
+const delivery=(...args)=>spawnSync('python3',[py('r3_delivery'),...args],{encoding:'utf8'});
+const outdir=t=>{const p=fs.mkdtempSync(path.join(os.tmpdir(),'r3-delivery-out-'));t.after(()=>fs.rmSync(p,{recursive:true,force:true}));return p;};
+function deliveryResult(result){
+  assert.equal(result.status,0,result.stdout+' '+result.stderr);
+  const data=JSON.parse(result.stdout);assert.equal(data.restorationVerified,true);return data;
+}
+test('P0-F02: complete ZIP replays awaiting_approval and approved Pilot, includes snapshots, never mutates source',t=>{
+  const root=readyPilot(t);prepareCandidate(root);
+  assert.equal(cli('submit_pilot_review',root,'pilot-source.json').status,0);
+  const out=outdir(t),archive=path.join(out,'candidate.zip');
+  const planBefore=fs.readFileSync(path.join(root,'02-写作计划.json'));
+  const result=deliveryResult(delivery('create',root,archive,'--upto','3'));
+  assert.equal(result.checkpoint.pilotStatus,'awaiting_approval');
+  assert.equal(result.checkpoint.gate.status,'blocked');
+  assert.ok(result.checkpoint.gate.issues.includes('PILOT_NOT_PASSED'));
+  assert.deepEqual(deliveryResult(delivery('verify',archive)).checkpoint,result.checkpoint);
+  assert.deepEqual(fs.readFileSync(path.join(root,'02-写作计划.json')),planBefore);
+  const bytes=fs.readFileSync(archive);
+  assert.equal(delivery('create',root,archive,'--upto','3').status,2);
+  assert.deepEqual(fs.readFileSync(archive),bytes);
+  const unpacked=path.join(out,'restored');
+  const restore=spawnSync('python3',[py('restore_snapshot'),archive,unpacked],{encoding:'utf8'});
+  assert.equal(restore.status,0,restore.stderr);
+  const plan=read(root),ch=plan.v3.r2.chapterReviews['3'],core=plan.v3.r3.corePlan;
+  for(const rel of [ch.inputPath,ch.reviewPath,ch.r3Snapshot.path+'/manifest.json',core.inputPath,
+    core.snapshotPath+'/manifest.json',plan.v3.pilotGate.reviewInputPath,'story-ledger.json'])
+    assert.deepEqual(fs.readFileSync(path.join(unpacked,rel)),fs.readFileSync(path.join(root,rel)));
+  writePilotApproval(root);
+  assert.equal(cli('record_pilot_approval',root,'--evidence','pilot-approval.json').status,0);
+  const passed=deliveryResult(delivery('create',root,path.join(out,'approved.zip'),'--upto','3'));
+  assert.equal(passed.checkpoint.pilotStatus,'passed');
+  assert.equal(passed.checkpoint.gate.status,'allowed');
+});
+test('P0-F02: missing review evidence, tampered snapshot and generic backup cannot masquerade as complete delivery',t=>{
+  const root=readyPilot(t);prepareCandidate(root);
+  assert.equal(cli('submit_pilot_review',root,'pilot-source.json').status,0);
+  const out=outdir(t),archive=path.join(out,'candidate.zip'),plan=read(root),rec=plan.v3.r2.chapterReviews['3'];
+  for(const rel of [rec.inputPath,rec.r3Snapshot.path+'/manifest.json',plan.v3.pilotGate.reviewInputPath,'story-ledger.json']){
+    const p=path.join(root,rel),bytes=fs.readFileSync(p);fs.unlinkSync(p);
+    const bad=delivery('create',root,archive,'--upto','3');assert.equal(bad.status,2,bad.stdout);
+    assert.ok(!fs.existsSync(archive));fs.writeFileSync(p,bytes);
+  }
+  const snap=path.join(root,rec.r3Snapshot.path,'chapter-0003.md'),old=fs.readFileSync(snap);
+  fs.appendFileSync(snap,'tamper');
+  assert.equal(delivery('create',root,archive,'--upto','3').status,2);assert.ok(!fs.existsSync(archive));
+  fs.writeFileSync(snap,old);
+  deliveryResult(delivery('create',root,archive,'--upto','3'));
+  const generic=path.join(out,'generic.zip');
+  assert.equal(spawnSync('python3',[py('create_snapshot'),root,generic],{encoding:'utf8'}).status,0);
+  assert.match(delivery('verify',generic).stdout,/generic backup\/review-only ZIP/);
+  // A self-consistent hash manifest that omits a required file must still fail replay.
+  const incomplete=path.join(out,'incomplete.zip');
+  const rewrite=spawnSync('python3',['-c',
+    'import json,sys,zipfile; src,dst,omit=sys.argv[1:]; a=zipfile.ZipFile(src); m=json.loads(a.read("manifest.json")); m["files"]=[x for x in m["files"] if x["path"]!=omit]; b=zipfile.ZipFile(dst,"x"); [b.writestr(n,a.read(n)) for n in a.namelist() if n not in ("manifest.json",omit)]; b.writestr("manifest.json",json.dumps(m)); b.close(); a.close()',
+    archive,incomplete,rec.inputPath],{encoding:'utf8'});
+  assert.equal(rewrite.status,0,rewrite.stderr);
+  assert.equal(spawnSync('python3',[py('verify_snapshot'),incomplete],{encoding:'utf8'}).status,0);
+  const invalid=delivery('verify',incomplete);
+  assert.equal(invalid.status,2,invalid.stdout);
+  assert.match(invalid.stdout,/R2_REVIEW_FILE_MISSING_ch003/);
 });
