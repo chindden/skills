@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import {p1State,priorStrengths} from './r3_p1_common.mjs';
 import path from 'node:path';
-import {projectRoot,readPlan,atomicWritePlan,pilotHashes,sha256} from './v3_common.mjs';
+import {projectRoot,readPlan,atomicWritePlan,pilotHashes,sha256,readJsonFile} from './v3_common.mjs';
 import {hasR3Namespace} from './r3_state_common.mjs';
 import {assertR3PilotPrerequisites} from './r2_review_common.mjs';
 
@@ -30,7 +30,8 @@ try {
     .map(c=>({chapterNumber:c.chapterNumber,filePath:c.filePath,sha256:hashes[String(c.chapterNumber)]}));
   const p1=p1State(plan);
   const packet={schemaVersion:1,revision,createdAt:new Date().toISOString(),chapters,
-    ...(p1?{p1Protocol:1,priorStrengths:priorStrengths(root,gate)}:{}),
+    ...(p1?{p1Protocol:1,priorStrengths:priorStrengths(root,gate),writers:chapters.flatMap(c=>
+      readJsonFile(root,plan.v3.r2.chapterReviews[String(c.chapterNumber)].inputPath).writers)}:{}),
     note:'Editor must read original chapters and settings independently; self-ratings are excluded.'};
   const reviewFile=path.join(root,reviewRel);
   fs.mkdirSync(path.dirname(reviewFile),{recursive:true});
