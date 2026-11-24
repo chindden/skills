@@ -3,6 +3,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {projectRoot,readPlan,readJsonFile,sha256} from './v3_common.mjs';
+import {p1State,readFeedback} from './r3_p1_common.mjs';
+import {continuityIssues,recentSources} from './r3_continuity_common.mjs';
+import {momentum,cascadeWarnings} from './r3_feedback_view.mjs';
+import {structuredChecks} from './r3_structured_checks.mjs';
 const args=process.argv.slice(2),dir=args[0],hasText=x=>typeof x==='string'&&x.trim().length>0;
 const usage='Usage: audit_story_state.mjs <project> --upto N [--write | --handoff [--anchor ID]...] [--json]';
 try{
@@ -22,6 +26,7 @@ try{
   const root=projectRoot(dir),plan=readPlan(root),ledger=readJsonFile(root,'story-ledger.json');
   if(ledger.schemaVersion!==1 || !['facts','foreshadowing','relationships','mechanisms'].every(k=>Array.isArray(ledger[k])))
     throw new Error('INVALID_LEDGER_SCHEMA');
+  const p1=!!p1State(plan);
   const known=new Set(plan.chapters.map(c=>c.chapterNumber));
   const issues=[],warn=(code,details)=>issues.push({code,severity:'review',...details}),ids=new Set();
   const checkEntry=(entry,collection)=>{
@@ -37,7 +42,7 @@ try{
       typeof fact.subject!=='string'||!fact.subject.trim()||typeof fact.key!=='string'||!fact.key.trim()||
       typeof fact.value!=='string'||!fact.value.trim()||typeof fact.evidence!=='string'||!fact.evidence.trim())
       throw new Error('INVALID_FACT_'+fact.id);
-    if(fact.chapter>upto||fact.kind!=='established'||fact.supersededBy)continue;
+    if(fact.chapter>upto||fact.kind!=='established'||(p1?ledger.facts.some(f=>f.id===fact.supersededBy&&f.chapter<=upto):fact.supersededBy))continue;
     const key=fact.subject+'\\u0000'+fact.key,previous=factsByKey.get(key);
     if(previous&&previous.value!==fact.value)warn('FACT_CONFLICT_CANDIDATE',{ids:[previous.id,fact.id],subject:fact.subject,key:fact.key,
       note:'同一属性出现不同有效值：可能是状态变化或错误，须按正文时间线核查'});
@@ -47,9 +52,9 @@ try{
     checkEntry(f,'foreshadowing');
     if(!['open','paid','dropped'].includes(f.status)||typeof f.description!=='string'||!f.description.trim())
       throw new Error('INVALID_FORESHADOWING_'+f.id);
-    if(f.chapter<=upto&&f.status==='paid'&&(!Number.isSafeInteger(f.payoffChapter)||f.payoffChapter<f.chapter||f.payoffChapter>upto))
+    if(f.chapter<=upto&&f.status==='paid'&&(!Number.isSafeInteger(f.payoffChapter)||f.payoffChapter<f.chapter||(!p1&&f.payoffChapter>upto)))
       warn('FORESHADOW_PAYOFF_MISMATCH',{id:f.id});
-    if(f.chapter<=upto && f.status==='open' && upto-f.chapter>=10)
+    if(!p1&&f.chapter<=upto && f.status==='open' && upto-f.chapter>=10)
       warn('LONG_OPEN_FORESHADOW',{id:f.id,age:upto-f.chapter,note:'长期未兑现不一定错误，审查是否有追踪计划'});
   }
   for(const rel of ledger.relationships){
@@ -73,7 +78,16 @@ try{
   }
   const complete=plan.chapters.filter(c=>c.chapterNumber<=upto&&c.status==='completed');
   const tracked=new Set(ledger.mechanisms.filter(m=>m.chapter<=upto).map(m=>m.chapter));
+  const bindings=p1?continuityIssues(root,plan,upto):[];
+  const feedback=p1?readFeedback(root,plan,{upto}):null;
+  const motion=p1?momentum(feedback,ledger,upto):null;
+  if(p1){
+    for(const issue of bindings)issues.push({code:issue,severity:'blocking'});
+    for(const issue of structuredChecks(ledger,upto))if(issue.impact!=='hard')warn(issue.code,issue);
+    for(const issue of motion.warnings)warn(issue.code,issue);
+  }
   if(handoff){
+    if(bindings.length)throw new Error(bindings.join(','));
     if(complete.length!==upto)throw new Error('HANDOFF_CHAPTERS_NOT_COMPLETED');
     if(ledger.handoffs!==undefined&&!Array.isArray(ledger.handoffs))throw new Error('INVALID_HANDOFFS');
     const byChapter=new Map();
@@ -122,13 +136,16 @@ try{
       relationships:ledger.relationships.filter(r=>r.chapter===upto)
         .map(({characters,change,consequence})=>({characters,change,consequence}))}:null;
     const baseline={asOf:item?.asOf??null,facts:baselineFacts.map(factView)};
-    console.log(JSON.stringify({status:'ready',upto,baseline,lastHandoff,historyAnchors},null,2));
+    console.log(JSON.stringify({status:'ready',upto,baseline,lastHandoff,historyAnchors,
+      ...(p1?{literaryStatus:'UNVERIFIED',recentSources:recentSources(root,plan,upto),
+        deferredIssues:feedback.deferredIssues.filter(i=>i.status==='open'),momentum:motion,
+        cascadeWarnings:cascadeWarnings(feedback,[...baselineFacts,...historyAnchors])}: {})},null,2));
   }else{
     for(const c of complete.filter(c=>c.chapterNumber>Math.max(0,upto-5))){
       if(!tracked.has(c.chapterNumber))warn('MECHANISM_UNRECORDED',{chapter:c.chapterNumber,note:'本章故事机制尚未录入账本'});
     }
     const bytes=fs.readFileSync(path.join(root,'story-ledger.json'));
-    const report={schemaVersion:1,upto,createdAt:new Date().toISOString(),ledgerSha256:sha256(bytes),
+    const report={schemaVersion:1,upto,...(p1?{literaryStatus:'UNVERIFIED',momentum:motion,deferredIssues:feedback.deferredIssues}:{}),createdAt:new Date().toISOString(),ledgerSha256:sha256(bytes),
       summary:{chaptersReviewed:complete.length,issues:issues.length},issues,
       semanticReviewRequired:['人物的真实动机与关系推进','剧情机制是否仅语义换皮','线索公平性和读者追读动力']};
     if(write){
@@ -138,5 +155,6 @@ try{
       report.savedTo=path.relative(root,out);
     }
     console.log(JSON.stringify(report,null,2));
+    if(p1&&bindings.length)process.exitCode=1;
   }
 } catch(e){console.log(JSON.stringify({status:'error',error:e.message}));process.exitCode=2;}
