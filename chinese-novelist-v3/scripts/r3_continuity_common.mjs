@@ -17,7 +17,17 @@ export function ledgerProjection(ledger,chapter){
     for(const x of ledger[kind]){
       if(!x||!Number.isSafeInteger(x.chapter)||x.chapter<0||
         (x.chapter===0&&(kind!=='facts'||x.scope!=='global')))fail('R3_LEDGER_ENTRY_INVALID_'+kind);
+      if(kind==='facts'&&(!['established','character-belief','provisional'].includes(x.kind)||
+        ![x.subject,x.key,x.value,x.evidence].every(nonempty)))fail('R3_LEDGER_FACT_INVALID_'+x.id);
+      if(kind==='foreshadowing'&&!nonempty(x.description))fail('R3_LEDGER_PROMISE_INVALID_'+x.id);
+      if(kind==='relationships'&&(!Array.isArray(x.characters)||x.characters.length<2||
+        !x.characters.every(nonempty)||![x.change,x.consequence].every(nonempty)))fail('R3_LEDGER_RELATIONSHIP_INVALID_'+x.id);
+      if(kind==='mechanisms'&&![x.goal,x.strategy,x.opposition,x.cost,x.outcome].every(nonempty))
+        fail('R3_LEDGER_MECHANISM_INVALID_'+x.id);
       if(kind==='handoffs'){
+        if(!nonempty(x.asOf)||!Array.isArray(x.events)||!x.events.length||
+          x.events.some(e=>!nonempty(e?.when)||!nonempty(e?.event))||!Array.isArray(x.knowledge)||
+          x.knowledge.some(k=>!nonempty(k?.character)||!nonempty(k?.change)))fail('R3_LEDGER_HANDOFF_INVALID_'+x.chapter);
         if(handoffs.has(x.chapter))fail('R3_LEDGER_DUPLICATE_HANDOFF_'+x.chapter);
         handoffs.add(x.chapter);
         if(x.chapter===chapter)add('handoff:'+chapter,x);
