@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import {safeFile,sha256} from './v3_common.mjs';
-import {hasR3Namespace} from './r3_state_common.mjs';
+import {hasR3Namespace,validR3Namespace} from './r3_state_common.mjs';
+import {verifyR3Plan} from './r3_plan_common.mjs';
 import {verifyR3ManuscriptSnapshot} from './r3_manuscripts.mjs';
 export const r2State=()=>({schemaVersion:1,chapterReviews:{},arcReviews:{}});
 export const range=(kind,end)=>kind==='chapter'?[end]:[end-2,end-1,end];
@@ -90,4 +91,18 @@ export function checkGate(root,plan,chapter,finalize=false){
   }
   for(let n=6;n<=last;n+=3){const e=verify(root,plan,'arc',n);if(e)errs.push(e);}
   return errs;
+}
+
+/** R3 Pilot lifecycle precondition. Reuse the same evidence checks as chapter 4,
+ * without requiring Pilot itself to have passed. R2/V3 behavior is unchanged. */
+export function assertR3PilotPrerequisites(root,plan){
+  if(!hasR3Namespace(plan))return;
+  if(plan.v3.schemaVersion!==1||plan.v3.creativeDecision!=='accepted')
+    throw new Error('CREATIVE_AND_PLAN_APPROVAL_REQUIRED');
+  if(!validR3Namespace(plan.v3.r3))throw new Error('R3_STATE_INVALID');
+  if(plan.v3.r3.reviewPolicy!=='every_chapter')throw new Error('R3_REVIEW_POLICY_NOT_ENABLED');
+  const planning=verifyR3Plan(root,plan,3);
+  if(planning.length)throw new Error('R3_PLAN_APPROVAL_REQUIRED: '+planning.join(','));
+  const chapters=checkGate(root,plan,4);
+  if(chapters.length)throw new Error('R3_PILOT_CHAPTER_REVIEWS_REQUIRED: '+chapters.join(','));
 }
