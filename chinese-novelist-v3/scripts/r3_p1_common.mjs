@@ -107,6 +107,7 @@ export function checkP1Report(root,plan,report,kind,end,packet){
     const label='R3_P1_ISSUE_'+idx;
     if(!where(i.chapter,i.quote)||!['A','B','C','blank'].includes(i.classification)||
       !['explicit_conflict','causal_break','narrative_risk','reasonable_blank'].includes(i.evidenceLevel)||
+      !['explicit_text','reasonable_inference','requires_new_setting'].includes(i.evidenceBasis)||
       !['fix_now','fix_in_arc','defer_to_final','keep_as_blank'].includes(i.disposition))
       fail(label+'_EVIDENCE_OR_DISPOSITION');
     if(['BLOCKER','MAJOR'].includes(i.severity)&&
@@ -123,7 +124,7 @@ export function checkP1Report(root,plan,report,kind,end,packet){
     }else if(i.classification==='C'){
       if(i.severity!=='MINOR'||!['fix_now','defer_to_final'].includes(i.disposition)||
         (i.status!=='resolved'&&i.disposition==='fix_now'&&report.decision==='pass_candidate'))fail(label+'_LOCAL_RISK');
-    }else if(i.disposition!=='keep_as_blank'||i.evidenceLevel!=='reasonable_blank'||
+    }else if(i.disposition!=='keep_as_blank'||i.evidenceLevel!=='reasonable_blank'||i.evidenceBasis==='requires_new_setting'||
        i.status!=='accepted'||!nonempty(i.acceptanceReason))fail(label+'_BLANK');
     if(i.disposition==='fix_in_arc'||i.disposition==='defer_to_final'){
       if(!nonempty(i.subject)||!nonempty(i.key)||(i.factId!==undefined&&i.factId!==null&&!nonempty(i.factId)))
