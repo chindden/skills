@@ -62,7 +62,7 @@ try{
       if(snapError)throw new Error(snapError);
     }
     const bytes=fs.readFileSync(src),report=JSON.parse(bytes);
-    const errors=validate(report,packet);
+    const errors=validate(report,packet,!!p1State(plan));
     if(errors.length)throw new Error(errors.join(','));
     if(p1State(plan)){
       if(packet.p1Protocol!==1)throw new Error('R3_P1_PACKET_REQUIRED');
