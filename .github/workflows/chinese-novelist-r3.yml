@@ -34,3 +34,6 @@ jobs:
 
       - name: Verify portable R3 experience library
         run: node --test chinese-novelist-v3/scripts/tests/r3_experience.test.mjs
+
+      - name: Verify P1-08 Drive authority, commit pointers and portable history
+        run: node --test chinese-novelist-v3/scripts/tests/r3_experience_drive.test.mjs
