@@ -92,8 +92,11 @@ function coreSubmit(root,plan){
   const rel='reviews/r3/core/report-'+role+'-v'+c.revision+'.json';
   const digest=writeNew(root,rel,snapshotText(raw));
   c.reviews[role]={path:rel,sha256:digest,decision:raw.decision};
-  c.status=coreRoles.every(x=>c.reviews[x]?.decision==='pass_candidate')?'awaiting_approval':
-    raw.decision==='pass_candidate'?'under_review':'revise';
+  // Aggregate all submitted independent editor decisions. A later passing
+  // report must not erase a previous editor's revise/reject verdict.
+  const decisions=coreRoles.map(x=>c.reviews[x]?.decision).filter(Boolean);
+  c.status=decisions.some(x=>x==='revise'||x==='reject')?'revise':
+    coreRoles.every(x=>c.reviews[x]?.decision==='pass_candidate')?'awaiting_approval':'under_review';
   atomicWritePlan(root,plan);
   output({status:c.status,role,revision:c.revision,reviewPath:rel,reviewSha256:digest});
 }
