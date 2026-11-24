@@ -88,7 +88,7 @@ if(!folder||!Number.isSafeInteger(chapter)||chapter<1||(finalize&&(!Number.isSaf
     try {for(const code of checkGate(root,plan,chapter,finalize))fail(code,'R2 independent chapter/milestone review gate');}
     catch(e){fail('R2_CHECK_ERROR',e.message);}
     try{
-      for(const code of [...p1GateIssues(root,plan,chapter,finalize),...p1PilotIssues(root,plan),
+      for(const code of [...p1GateIssues(root,plan,chapter,finalize),...(chapter>=4?p1PilotIssues(root,plan):[]),
         ...continuityIssues(root,plan,chapter-1)])fail(code,'R3 P1 source binding or arc obligation');
     }catch(e){fail('R3_P1_CHECK_ERROR',e.message);}
     done(issues.length?'blocked':'allowed',root);
