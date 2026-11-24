@@ -68,7 +68,7 @@ export function dueIssues(root,plan,upto){
 }
 export function p1GateIssues(root,plan,chapter,finalize=false){
   if(!p1State(plan))return [];
-  const all=readFeedback(root,plan).deferredIssues;
+  const all=readFeedback(root,plan,{upto:chapter-1}).deferredIssues;
   return all.filter(i=>i.chapter<chapter&&i.status==='open'&&i.disposition==='fix_in_arc'&&
     (finalize||i.dueChapter<chapter)).map(i=>'R3_P1_ARC_FIX_DUE_'+i.trackingId);
 }
