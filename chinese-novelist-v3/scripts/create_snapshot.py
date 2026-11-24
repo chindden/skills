@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 
 EXCLUDE = {"backups", ".git", "node_modules", "__pycache__"}
 
-def create_snapshot(root: pathlib.Path, output: pathlib.Path):
+def create_snapshot(root: pathlib.Path, output: pathlib.Path, *, delivery=None):
     root = root.resolve(strict=True)
     output = output.resolve(strict=False)
     if not root.is_dir():
@@ -39,6 +39,8 @@ def create_snapshot(root: pathlib.Path, output: pathlib.Path):
         "createdAt": datetime.now(timezone.utc).isoformat(),
         "files": [],
     }
+    if delivery is not None:
+        manifest["delivery"] = delivery
     output.parent.mkdir(parents=True, exist_ok=True)
     try:
         with zipfile.ZipFile(output, "x", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as z:

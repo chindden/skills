@@ -7,6 +7,14 @@ description: 中文精品网文的创意竞标、故事规划、前三章试写�
 
 目标：帮助作者产出**有辨识度、人物鲜活、逻辑可信且值得追读**的作品。流程和评分是提高质量的手段，不是精品保证。
 
+## R3 实验模式（仅显式启用）
+
+**仅当作者明确要求使用 R3，且工作项目通过 `init_v3_state.mjs --enable-r3` 显式建立 `v3.r3` 状态时**，优先读取 [R3 实验运行手册](references/v3/r3-operational-runbook.md) 与 [R3 严格分区协议](references/v3/r3-markdown-sections.md)。本文件后续 Stage 2 的 `plan_review.mjs` 整文件冻结说明仅适用于 R2/V3 旧模式；R3 改用独立的 `r3_plan.mjs` 核心与卷级审批，不可混用旧批准链。
+
+R3 继续复用原逐章独立审稿、三章弧审、Pilot 停审与事实账本。明确启用 P1 时，先读 [R3 P1 创作反馈与持续学习协议](references/v3/r3-p1-protocol.md)，用 `r3_p1.mjs PROJECT activate --project-id ID` 激活；该协议优先于后文旧 R2 的手工章节摘要、缺陷处置规则。P1 可选经验库不是正文门禁。 P1 启用后必须按协议 §4.1 在新作品立项主动检索，在 Pilot 验收、卷末、完本等自然节点主动提示模型轻量复盘，允许无新增经验；实质反馈或具体创作问题才按需触发。禁止默认逐章/逐弧学习、强制产出或使用经验；经验库不可用不阻断写作。 跨作品经验唯一权威源是用户 Google Drive 的 `[CN-R3-EXP] 跨作品创作经验库`，按 §4.2–4.5 定位、分类、回读校验和不可变索引发布；Native Memory 仅可选入口，不使用 Notebook 同步或本地在线经验库。实际工具不可用/未授权时跳过。使用 `scripts/r3_experience_drive.mjs` 离线校验、生成索引、检查基线及备份恢复；旧 `r3_experience.mjs` 仅历史离线兼容。禁止模型手工维护索引、强制使用经验或让旧经验覆盖现行协议。P2 风险分级审核、Spike 和完本精修尚未实现，不得提前宣称具备。所有 R3 正文动笔前仍以 `v3_gate.mjs --chapter N --json` 的**真实退出码 0**为准。只用独立实验项目，R2 原项目不静默迁移。
+
+研发与完成度见 [R3 PRD](docs/R3-PRD.md)。单元测试通过不等于小说好看；须单独评估读者持续追读意愿。
+
 ## 执行优先级
 1. 先读本文件及 [V3 总流程](references/v3/workflow.md)。所有 V3 门禁、状态和用户确认要求优先于原版 `references/flows/` 中的“自动写完整书”指令。原版保留为技法和工具底座，**不要运行与 V3 冲突的旧流程**。
 2. 根据任务按需读取 [创意竞标](references/v3/creative-lab.md)、[题材与架构](references/v3/story-architecture.md)、[八套原创网文知识库总索引](references/webnovel/README.md)、[独立审稿](references/v3/editorial-gate.md)、[状态与备份](references/v3/state-and-backup.md)。知识库必须**先选题材/主流派及读者承诺，再按任务读取少量相关库与具体章节**；不能每次全库灌入上下文，不以套路数量代替故事质量。

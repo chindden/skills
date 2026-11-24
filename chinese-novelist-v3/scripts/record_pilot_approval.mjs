@@ -3,8 +3,11 @@
  * The CLI cannot independently prove a user utterance is authentic.
  */
 import fs from 'node:fs';
+import {p1GateIssues,p1PilotIssues} from './r3_p1_common.mjs';
+import {continuityIssues} from './r3_continuity_common.mjs';
 import path from 'node:path';
 import {projectRoot,readPlan,safeFile,readJsonFile,atomicWritePlan,pilotHashes,sameHashes,sha256,structuredReportValid} from './v3_common.mjs';
+import {assertR3PilotPrerequisites} from './r2_review_common.mjs';
 const args=process.argv.slice(2),rootArg=args[0],idx=args.indexOf('--evidence');
 try {
   if(!rootArg||idx<0||typeof args[idx+1]!=='string'||args.some((x,i)=>x.startsWith('--')&&!['--json','--evidence'].includes(x))) {
@@ -12,6 +15,9 @@ try {
   }
   const root=projectRoot(rootArg),plan=readPlan(root),gate=plan.v3?.pilotGate;
   if(gate?.status!=='awaiting_approval'||gate.reviewDecision!=='pass_candidate')throw new Error('NO_PASS_CANDIDATE_REVIEW');
+  assertR3PilotPrerequisites(root,plan);
+  const p1Issues=[...p1GateIssues(root,plan,4),...p1PilotIssues(root,plan),...continuityIssues(root,plan,3)];
+  if(p1Issues.length)throw new Error(p1Issues.join(','));
   const reviewFile=safeFile(root,gate.reviewPath);
   if(!reviewFile)throw new Error('REVIEW_MISSING');
   const bytes=fs.readFileSync(reviewFile);

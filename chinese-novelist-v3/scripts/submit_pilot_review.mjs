@@ -1,16 +1,24 @@
 #!/usr/bin/env node
 /** Register a real independent-editor report for the exact submitted pilot revision. */
 import fs from 'node:fs';
+import {p1State,checkP1Report,recordFeedback} from './r3_p1_common.mjs';
 import path from 'node:path';
 import {projectRoot,readPlan,safeFile,readJsonFile,atomicWritePlan,pilotHashes,sameHashes,sha256,structuredReportValid} from './v3_common.mjs';
+import {assertR3PilotPrerequisites} from './r2_review_common.mjs';
 const args=process.argv.slice(2),rootArg=args[0],sourceArg=args[1];
 try {
   if(!rootArg||!sourceArg||args.slice(2).some(x=>x!=='--json'))throw new Error('Usage: submit_pilot_review.mjs <project> <editor-report.json-relative-path> [--json]');
   const root=projectRoot(rootArg),plan=readPlan(root),gate=plan.v3?.pilotGate;
   if(gate?.status!=='under_review'||!Number.isSafeInteger(gate.revision)||gate.revision<1)throw new Error('REVIEW_NOT_PREPARED');
+  assertR3PilotPrerequisites(root,plan);
   const source=safeFile(root,sourceArg);
   if(!source)throw new Error('REPORT_MUST_BE_EXISTING_PROJECT_FILE');
   const packet=readJsonFile(root,gate.reviewInputPath);
+  if(p1State(plan)){
+    const ip=safeFile(root,gate.reviewInputPath);
+    if(!ip||packet.p1Protocol!==1||sha256(fs.readFileSync(ip))!==gate.reviewInputSha256)
+      throw new Error('R3_P1_PILOT_INPUT_CHANGED');
+  }
   const hashes=pilotHashes(root,plan);
   if(packet.revision!==gate.revision||!sameHashes(packet.chapters &&
     Object.fromEntries(packet.chapters.map(c=>[String(c.chapterNumber),c.sha256])),hashes)||
@@ -18,6 +26,7 @@ try {
   const bytes=fs.readFileSync(source),report=JSON.parse(bytes.toString('utf8'));
   const errors=structuredReportValid(report,gate.revision,hashes);
   if(errors.length)throw new Error('INVALID_EDITOR_REPORT: '+errors.join(','));
+  if(p1State(plan))checkP1Report(root,plan,report,'pilot',3,packet);
   const destinationRel='reviews/pilot-review-v'+gate.revision+'.json';
   const destination=path.join(root,destinationRel);
   if(path.resolve(source)===path.resolve(destination))throw new Error('REPORT_INPUT_MUST_BE_DISTINCT_FROM_CANONICAL_OUTPUT');
@@ -27,6 +36,7 @@ try {
   gate.reviewPath=destinationRel;
   gate.reviewSha256=sha256(bytes);
   gate.reviewDecision=report.decision;
+  recordFeedback(plan,'pilot',3,gate.revision,destinationRel,gate.reviewSha256);
   gate.humanApproved=false;gate.approvedAt=null;gate.approvalPath=null;gate.approvalSha256=null;
   plan.v3.pilotGate=gate;
   atomicWritePlan(root,plan);

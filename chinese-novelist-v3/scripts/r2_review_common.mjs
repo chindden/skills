@@ -1,5 +1,10 @@
 import fs from 'node:fs';
+import {continuityIssues} from './r3_continuity_common.mjs';
+import {verifyP1Registration,p1State} from './r3_p1_common.mjs';
 import {safeFile,sha256} from './v3_common.mjs';
+import {hasR3Namespace,validR3Namespace} from './r3_state_common.mjs';
+import {verifyR3Plan} from './r3_plan_common.mjs';
+import {verifyR3ManuscriptSnapshot} from './r3_manuscripts.mjs';
 export const r2State=()=>({schemaVersion:1,chapterReviews:{},arcReviews:{}});
 export const range=(kind,end)=>kind==='chapter'?[end]:[end-2,end-1,end];
 export const key=(kind,end)=>(kind==='chapter'?'ch':'arc')+String(end).padStart(3,'0');
@@ -16,7 +21,7 @@ export function hashes(root,plan,numbers){
 }
 export const equal=(a,b)=>!!a&&!!b&&Object.keys(a).length===Object.keys(b).length&&
   Object.keys(b).every(k=>a[k]===b[k]&&/^[0-9a-f]{64}$/.test(a[k]));
-export function validate(report,packet){
+export function validate(report,packet,allowP1=false){
   const errors=[];
   if(report?.schemaVersion!==1||report.kind!==packet.kind||
       report.end!==packet.end||report.revision!==packet.revision)
@@ -47,7 +52,9 @@ export function validate(report,packet){
       ids.add(i.id);
     }
     if(report.decision==='pass_candidate'&&report.issues.some(i=>
-      (i.status==='open'&&['BLOCKER','MAJOR'].includes(i.severity))||
+      (i.status==='open'&&['BLOCKER','MAJOR'].includes(i.severity)&&
+        !(allowP1&&packet.p1Protocol===1&&packet.kind==='chapter'&&i.severity==='MAJOR'&&
+          i.classification==='B'&&i.disposition==='fix_in_arc'))||
       (i.status==='accepted'&&i.severity==='BLOCKER')))errors.push('R2_UNRESOLVED_ISSUES');
   }
   return errors;
@@ -67,7 +74,13 @@ export function verify(root,plan,kind,end){
     return 'R2_PACKET_MISMATCH_'+key(kind,end);
   if(!equal(hashes(root,plan,range(kind,end)),packet.manuscriptHashes))
     return 'R2_MANUSCRIPT_CHANGED_'+key(kind,end);
-  if(validate(report,packet).length||report.decision!=='pass_candidate')
+  if(hasR3Namespace(plan)){
+    const snapIssue=verifyR3ManuscriptSnapshot(root,plan,kind,end,record,packet);
+    if(snapIssue)return snapIssue+'_'+key(kind,end);
+  }
+  const registration=verifyP1Registration(root,plan,kind,end,record,packet);
+  if(registration)return registration+'_'+key(kind,end);
+  if(validate(report,packet,!!p1State(plan)).length||report.decision!=='pass_candidate')
     return 'R2_REPORT_INVALID_'+key(kind,end);
   return null;
 }
@@ -84,4 +97,20 @@ export function checkGate(root,plan,chapter,finalize=false){
   }
   for(let n=6;n<=last;n+=3){const e=verify(root,plan,'arc',n);if(e)errs.push(e);}
   return errs;
+}
+
+/** R3 Pilot lifecycle precondition. Reuse the same evidence checks as chapter 4,
+ * without requiring Pilot itself to have passed. R2/V3 behavior is unchanged. */
+export function assertR3PilotPrerequisites(root,plan){
+  if(!hasR3Namespace(plan))return;
+  if(plan.v3.schemaVersion!==1||plan.v3.creativeDecision!=='accepted')
+    throw new Error('CREATIVE_AND_PLAN_APPROVAL_REQUIRED');
+  if(!validR3Namespace(plan.v3.r3))throw new Error('R3_STATE_INVALID');
+  if(plan.v3.r3.reviewPolicy!=='every_chapter')throw new Error('R3_REVIEW_POLICY_NOT_ENABLED');
+  const planning=verifyR3Plan(root,plan,3);
+  if(planning.length)throw new Error('R3_PLAN_APPROVAL_REQUIRED: '+planning.join(','));
+  const chapters=checkGate(root,plan,4);
+  if(chapters.length)throw new Error('R3_PILOT_CHAPTER_REVIEWS_REQUIRED: '+chapters.join(','));
+  const bindings=continuityIssues(root,plan,3);
+  if(bindings.length)throw new Error(bindings.join(','));
 }
