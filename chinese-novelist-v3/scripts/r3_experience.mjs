@@ -85,6 +85,8 @@ function pack(root,dst,project,all){
   const target=path.join(realParent,path.basename(dst));
   if(target===root||target.startsWith(root+path.sep))fail('EXPERIENCE_EXPORT_OUTSIDE_LIBRARY');
   const entries=records(root).filter(e=>all||canRead(e,project));
+  const hist=path.join(root,'.history');
+  if(fs.existsSync(hist)&&(!fs.lstatSync(hist).isDirectory()||fs.lstatSync(hist).isSymbolicLink()))fail('EXPERIENCE_HISTORY_UNSAFE');
   const temp=fs.mkdtempSync(path.join(realParent,'.experience-export-'));
   try{
     const files=[];
@@ -110,6 +112,8 @@ function pack(root,dst,project,all){
 }
 function verifyPack(root){
   const manifestFile=path.join(root,'manifest.json');
+  const hist=path.join(root,'.history');
+  if(fs.existsSync(hist)&&(!fs.lstatSync(hist).isDirectory()||fs.lstatSync(hist).isSymbolicLink()))fail('EXPERIENCE_HISTORY_UNSAFE');
   if(!fs.lstatSync(manifestFile).isFile())fail('EXPERIENCE_MANIFEST_UNSAFE');
   const m=JSON.parse(fs.readFileSync(manifestFile,'utf8')),seen=new Set();
   if(m?.schemaVersion!==1||m.kind!=='r3-experience-export'||!Array.isArray(m.files))fail('EXPERIENCE_MANIFEST_INVALID');
@@ -138,12 +142,45 @@ function verifyPack(root){
   }
   return {status:'verified',entries:entries.length,files:seen.size};
 }
+function restore(root,dst){
+  verifyPack(root);
+  const target=path.resolve(dst);
+  if(fs.existsSync(target)||target.startsWith(root+path.sep))fail('EXPERIENCE_RESTORE_NEW_DIRECTORY_REQUIRED');
+  const parent=fs.realpathSync(path.dirname(target)),temp=fs.mkdtempSync(path.join(parent,'.experience-restore-'));
+  try{
+    const m=JSON.parse(fs.readFileSync(path.join(root,'manifest.json'),'utf8'));
+    for(const f of m.files){
+      const src=path.join(root,f.path),data=fs.readFileSync(src);
+      if(sha256(data)!==f.sha256)fail('EXPERIENCE_EXPORT_CHANGED');
+      const dest=path.join(temp,f.path);
+      fs.mkdirSync(path.dirname(dest),{recursive:true});writeExclusive(dest,data);
+    }
+    if(fs.existsSync(target))fail('EXPERIENCE_RESTORE_NEW_DIRECTORY_REQUIRED');
+    fs.renameSync(temp,target);return {status:'restored',directory:target,entries:records(target).length};
+  }finally{if(fs.existsSync(temp))fs.rmSync(temp,{recursive:true,force:true})}
+}
+function receipt(root,input,project){
+  const r=JSON.parse(fs.readFileSync(input,'utf8')),e=read(filename(root,r.id));
+  if(!canRead(e,project)||r.revision!==e.revision||
+    r.sourceSha256!==sha256(fs.readFileSync(filename(root,e.id)))||
+    !['notebook','memory'].includes(r.provider)||!['verified','failed','unavailable'].includes(r.status)||
+    !text(r.detail)||r.status==='verified'&&(!text(r.remoteId)||r.observedRevision!==e.revision||
+      r.observedSourceSha256!==r.sourceSha256))
+    fail('EXPERIENCE_SYNC_RECEIPT_INVALID');
+  // A host claim, not a server-side verification or a chapter gate.
+  const dir=path.join(root,'.receipts');
+  if(!fs.existsSync(dir))fs.mkdirSync(dir,{mode:0o700});
+  if(!fs.lstatSync(dir).isDirectory()||fs.lstatSync(dir).isSymbolicLink())fail('EXPERIENCE_RECEIPTS_UNSAFE');
+  const rel=path.join(dir,e.id+'-v'+e.revision+'-'+r.provider+'-'+randomUUID()+'.json');
+  writeExclusive(rel,JSON.stringify(r,null,2)+'\n');
+  return {status:'recorded_host_receipt',path:rel,remoteStatus:r.status,independentRemoteVerification:false};
+}
 try{
   const [action,dir,...args]=process.argv.slice(2);
   const allowed={upsert:['--input','--expected','--project-id'],get:['--id','--project-id'],
     search:['--query','--project-id','--include-candidates'],index:['--project-id'],
-    export:['--out','--project-id','--all'],verify:[]};
-  if(!dir||!Object.hasOwn(allowed,action))fail('Usage: r3_experience.mjs upsert|get|search|index|export|verify LIBRARY [options]');
+    export:['--out','--project-id','--all'],verify:[],restore:['--out'],receipt:['--input','--project-id']};
+  if(!dir||!Object.hasOwn(allowed,action))fail('Usage: r3_experience.mjs upsert|get|search|index|export|verify|restore|receipt LIBRARY [options]');
   const opts=new Map();
   for(let i=0;i<args.length;i++){
     const k=args[i];if(!allowed[action].includes(k)||opts.has(k))fail('EXPERIENCE_BAD_ARGS');
@@ -168,11 +205,17 @@ try{
       .filter(x=>x.score>0).sort((a,b)=>b.score-a.score||a.entry.id.localeCompare(b.entry.id,'en')).slice(0,5);
     out({status:'local_keyword_search',entries,optional:true,semanticRetrieval:false});
   }else if(action==='index'){
-    out({status:'local_index',entries:inventory(root,project,false).map(e=>({id:e.id,revision:e.revision,title:e.title,
-      scope:e.scope,projectId:e.projectId??null,status:e.status,sourceFile:filename(root,e.id),sha256:sha256(fs.readFileSync(filename(root,e.id)))})),
+    const view=e=>({id:e.id,revision:e.revision,title:e.title,scope:e.scope,projectId:e.projectId??null,
+      status:e.status,sourceFile:filename(root,e.id),sha256:sha256(fs.readFileSync(filename(root,e.id)))});
+    out({status:'local_index',entries:inventory(root,project,false).map(view),
+      withdrawn:records(root).filter(e=>canRead(e,project)&&['candidate','retired'].includes(e.status)).map(view),
       note:'Optional host sync only; no remote update is claimed. Recheck local revision after any remote recall.'});
   }else if(action==='export'){
     if(!opts.get('--out')||opts.has('--all')&&project!==undefined)fail('EXPERIENCE_EXPORT_ARGS');
     out(pack(root,opts.get('--out'),project,opts.has('--all')));
+  }else if(action==='restore'){
+    if(!opts.get('--out'))fail('EXPERIENCE_RESTORE_ARGS');out(restore(root,opts.get('--out')));
+  }else if(action==='receipt'){
+    if(!opts.get('--input'))fail('EXPERIENCE_RECEIPT_ARGS');out(receipt(root,opts.get('--input'),project));
   }else out(verifyPack(root));
 }catch(e){out({status:'error',error:e.message});process.exitCode=2}
