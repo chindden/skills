@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /** Immutable R2 review packet registration. Reported IDs require independent host-log verification. */
 import fs from 'node:fs';
+import {p1State,priorStrengths,checkP1Report,recordFeedback} from './r3_p1_common.mjs';
 import path from 'node:path';
 import {projectRoot,readPlan,atomicWritePlan,safeFile,sha256} from './v3_common.mjs';
 import {range,key,hashes,equal,validate,verify} from './r2_review_common.mjs';
@@ -36,7 +37,9 @@ try{
     const current=hashes(root,plan,numbers),revision=(old?.revision??0)+1,k=key(kind,end);
     const r3Snapshot=hasR3Namespace(plan)?prepareR3ManuscriptSnapshot(root,plan,kind,end,revision,old):null;
     const rel='reviews/r2/input-'+k+'-v'+revision+'.json';
+    const p1=p1State(plan);
     const packet={schemaVersion:1,kind,end,revision,manuscriptHashes:current,writers,preparedAt:new Date().toISOString(),
+      ...(p1?{p1Protocol:1,priorStrengths:priorStrengths(root,old)}:{}),
       ...(r3Snapshot?{r3Snapshot}:{})};
     const bytes=Buffer.from(JSON.stringify(packet,null,2)+'\n'),dst=path.join(root,rel);
     fs.mkdirSync(path.dirname(dst),{recursive:true});fs.writeFileSync(dst,bytes,{flag:'wx'});
@@ -61,11 +64,16 @@ try{
     const bytes=fs.readFileSync(src),report=JSON.parse(bytes);
     const errors=validate(report,packet);
     if(errors.length)throw new Error(errors.join(','));
+    if(p1State(plan)){
+      if(packet.p1Protocol!==1)throw new Error('R3_P1_PACKET_REQUIRED');
+      checkP1Report(root,plan,report,kind,end,packet);
+    }
     const rel='reviews/r2/report-'+key(kind,end)+'-v'+old.revision+'.json';
     if(path.resolve(src)===path.resolve(root,rel))throw new Error('R2_REPORT_INPUT_MUST_DIFFER');
     fs.writeFileSync(path.join(root,rel),bytes,{flag:'wx'});
     old.status=report.decision==='pass_candidate'?'passed':'revise';
     old.reviewPath=rel;old.reviewSha256=sha256(bytes);
+    recordFeedback(plan,kind,end,old.revision,rel,old.reviewSha256);
     atomicWritePlan(root,plan);
     console.log(JSON.stringify({status:old.status,kind,end,revision:old.revision,reviewPath:rel,
       warning:'Reviewer identifiers are declarations, not independent execution proof.'}));
