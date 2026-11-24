@@ -100,9 +100,9 @@ quantity_balance 仅对同一单位的明确整数做精确计算；chronology �
 
 生成不可覆盖的候选快照，绝不自动改大纲或批准下一卷。新的卷仍走 P0 volume-prepare/volume-approve。角色缺席和长期伏笔警告只说明已登记观察的间隔，不能宣称一定发生文学问题。
 
-## 4. 持续学习：Markdown 权威知识源，宿主可选
+## 4. 持续学习：Google Drive 唯一权威经验库
 
-经验库是用户控制的独立目录，不是 novel 项目账本或公开 Skill 仓库。沉淀有效方法、踩坑原因、适用及慎用边界。单书的设定、人物、事实必须留在单书；跨作品只保存可迁移的方法与证据。经验数量可为零，禁止每章默认检索和强制使用技巧，禁止把一条观察宣传成普遍定律。
+经验库是用户控制的 Google Drive 独立目录，不是 novel 项目账本或公开 Skill 仓库。Notebook 不进入跨作品经验架构；本地文件只供临时校验、备份迁移。沉淀有效方法、踩坑原因、适用及慎用边界。单书的设定、人物、事实必须留在单书；跨作品只保存可迁移的方法与证据。经验数量可为零，禁止每章默认检索和强制使用技巧，禁止把一条观察宣传成普遍定律。
 
 ### 4.1 触发协议（作者确认）
 
@@ -119,35 +119,55 @@ quantity_balance 仅对同一单位的明确整数做精确计算；chronology �
 
 在上述复盘节点提示模型：“结合本阶段真实原文、独立审稿及有效反馈，是否存在有证据、可复用且有适用边界的成功经验、失败教训，或需要更新/淘汰的旧经验？没有就明确无新增，不为凑数生成。” 先检索可能重复的旧条目；仅在证据支持时新建、更新、降级或淘汰。单书事实和人物理解留在项目内；跨作品仅存抽象方法与必要、脱敏的证据引用。
 
-在既有节点报告或独立轻量日志中记录项目ID、节点及对应完成凭证/版本、判断结果（无新增/新增/更新/淘汰/不可用）、相关经验 ID/版本及简要理由。同一节点同一证据版本不重复复盘，重跑只在实质证据变化时补记；无经验也算完成判断，不创建空经验条目。库不可用或同步失败只提示并继续，不阻断写作、不重试打断创作。作者未授权同步时保持本地。
+在既有节点报告或独立轻量日志中记录项目ID、节点及对应完成凭证/版本、判断结果（无新增/新增/更新/淘汰/不可用）、相关经验 ID/版本及简要理由。同一节点同一证据版本不重复复盘，重跑只在实质证据变化时补记；无经验也算完成判断，不创建空经验条目。库不可用或写入失败只提示并继续，不阻断写作、不重试打断创作。未获作者授权不得创建或写入云端经验库；不建立本地在线副本。
 
-### 4.2 经验入库与成熟度
+### 4.2 唯一目录、身份定位与分层组织
 
-    node scripts/r3_experience.mjs upsert LIBRARY --input experience.json --expected 0
+唯一长期经验权威载体为用户 Google Drive，根目录精确命名 `[CN-R3-EXP] 跨作品创作经验库`。可选 Memory ID `workflows/cn_r3_experience_hub` 仅存根目录定位指针及作者偏好，不保存唯一经验正文。优先核验已知 folder ID 的真实名称、账号权限和目录身份；无指针、失效或 Memory 不可用时，通过 Drive 文件夹精确名称搜索并完成所有分页。禁止用模糊匹配直接写入。查找失败/权限不足不是不存在；同名多个、身份不明或部分初始化时暂停经验写入并报告，不自动合并/重建，不影响小说创作。确认无目录且作者已授权初始化才创建；同一时刻只能有一个经验维护会话。
 
-输入为 schemaVersion:1、id（稳定字母数字下划线短横线）、revision:1、scope:"global" 或 "project"（后者必须有 projectId 且命令带 --project-id）、status:"candidate"、title、method、applicability、cautions、changeReason、tags、evidence。evidence 数组至少一条 {projectId,kind,source,observation}，kind 为 self_observation / independent_review / author_feedback / reader_feedback / controlled_comparison；source 引用真实可核验来源，observation 说明限制。status=supported 至少有一条非自评证据；mature 至少两个作品的非自评证据；这些只是最低材料要求，不自动证明经验正确。后续使用同 id、revision+1、--expected 当前版本；错误/过时可修订、降回 candidate 或标 retired，不改旧版历史。项目 scope/ID 不静默转全局。跨项目泛化需另建经实际核验的全局条目，不复制私有剧情。
+初始主题按六域组织：01-character-relation（人物关系）、02-conflict-pacing（冲突节奏）、03-plot-reversal（反转/伏笔）、04-worldbuilding-economy（世界观及规则）、05-prose-anti-cliche（文风反套路）、06-workflow-review（创作与审稿）。每份主题聚合多个经验，有稳定 ID、可读适用边界，初始主题版本 v1；主题文件名为 `01-character-relation-v1.md` 等。根目录有不可变版本索引 `00-INDEX-v1.md`；staging/ 暂存，archive/ 保存已提交历史索引和主题、另以 REJECTED- 前缀隔离拒绝候选。只有有效索引引用的唯一文件是现行版本，不按最新修改时间或最高主题版本扫描。单部作品事实/正文以原项目为准，跨作品库只存脱敏通用方法和必要证据；作品专属 Notebook 可选但不承担经验或事实权威源。未来达到实际检索瓶颈才考虑细分，不预设条目规模或增加 Notebook。
 
-新作品立项时主动检索；其余仅在创作诊断、规划卡点、必要修订或上述复盘中需要时检索：
+### 4.3 可见字段、严格校验与选择性检索
 
-    node scripts/r3_experience.mjs search LIBRARY --query "人物 选择" --project-id my-novel
-    node scripts/r3_experience.mjs get LIBRARY --id REAL_ID --project-id my-novel
-    node scripts/r3_experience.mjs index LIBRARY --project-id my-novel
+使用 `scripts/r3_experience_drive.mjs`（以下简称 TOOL），它是离线确定性工具，不持有 Drive 凭证，不直接调用云端 API。旧 `r3_experience.mjs` 保留为历史离线库兼容入口，禁止用它建立运行期权威库或 Notebook/Memory 同步。
 
-默认排除 candidate 和 retired；最多五个本地关键词命中，不声称本地检索是语义搜索。只有明确研究候选才用 --include-candidates。宿主 Notebook 可提供语义召回，但再次 get 当前本地版本、scope 与 status，旧版、缺项、越权条目全部忽略。Agent 自主判断是否采用，记录实际触发、命中 ID/版本、采用或不采用及原因/替代方案；没有有益经验则按作品自身需求继续。经验不属于任何写作门禁，不修改事实账本。检索/远端不可用时如实标明并回退本地或无经验创作。
+主题输入 JSON：{title,entries:[{id,title,revision,status,scope:"global",tags,applicability,method,cautions,evidence,changeReason}]}。所有正文字段为非空单行字符串，tags 为字符串数组，evidence 为对象数组（projectId,kind,source,observation）；kind 为 self_observation / independent_review / author_feedback / reader_feedback / controlled_comparison。supported 至少一条非自评证据，mature 至少两个不同作品的非自评证据；这不是文学正确性证明。新经验 revision=1；更新同 ID 递增一版，保留旧证据及修订原因；retired 不复活；候选/淘汰不默认召回。记录反例、适用条件、冲突经验；不以作者单次意见伪造跨作品验证，不设固定技法冷却章数。历史经验不能覆盖现行 Skill、作者要求或冻结契约。
 
-Notebook / Memory 只在宿主真正提供相应接口、用户授权同步时使用。index 的 entries 是当前有效 Markdown 路径/版本/hash；withdrawn 是撤回或降级候选，远端应删除或清晰标记不可召回为成熟经验。使用宿主实际 Notebook 创建/写入/刷新源/检索工具，或 Memory 原生条目保存/检索工具；不猜测接口、不伪造返回。Notebook 是检索/案例视图，Memory 只保存轻量索引与入口，不存单书精确事实。远端回读需核对真实 ID、revision 及权威源 hash；如果无法确认完整字节或版本，不能声称已验证。可选记录真实宿主回执：
+    node scripts/r3_experience_drive.mjs render-theme INPUT.json > THEME.md
+    node scripts/r3_experience_drive.mjs validate THEME.md
+    node scripts/r3_experience_drive.mjs index TEMP_DIR 1 01-character-relation-v1.md 02-conflict-pacing-v1.md ...
+    node scripts/r3_experience_drive.mjs resolve TEMP_DIR
+    node scripts/r3_experience_drive.mjs check-ref INDEX.md EXACT_THEME_FILENAME THEME.md
 
-    node scripts/r3_experience.mjs receipt LIBRARY --input sync-result.json --project-id my-novel
+实际初始化须列出全部六份初始主题文件（空主题允许），不是传入省略号。主题格式为可见 H1、H2（ID | 标题 | vN | 状态）及结构化字段列表；标签、验证证据为可见 JSON 值，其余为文字。Google Docs 会剥离 HTML 注释并转义标点，工具兼容 Markdown 标点反转义；必须在宿主真实上传后回读导出、解析并与预期语义数据比较，失败不发布。实验旧格式可用 inspect-experiment 只读解析，不满足证据 schema 的数据禁止直接晋升正式经验。不要虚构项目证据或把实验经验写入正式库。
 
-回执含 id、revision、sourceSha256、provider:"notebook"|"memory"、status:"verified"|"failed"|"unavailable"、detail；verified 另需 remoteId、observedRevision、observedSourceSha256 与本地匹配。此记录只是宿主声明，非脚本连接远端的独立验证。用户未授权上传则不上传，不需要伪造 receipt。不可把 P1 本地测试通过当作 Notebook 跨会话可靠性的证明。
+召回时先完成根目录枚举，按数字版本定位最高索引，要求该名称唯一，索引标题版本匹配，且所有引用文件名在根目录唯一可定位；若存在重复、歧义或索引损坏，跳过本次经验使用而非静默回退到可能已撤回的旧版。读取索引选相关主题，完整导出对应主题后执行 check-ref 校验其语义哈希及索引条目，才可从 supported/mature 中自主选用。没有匹配时不必读主题；不按章注入。使用前重查最新索引版本，版本变化则重新检索。所有临时文件使用独立会话目录；Drive 不可用时无经验继续，不将临时缓存视为权威。复盘同时核对本阶段实际使用的历史 ID/版本、预期与实际效果、负面影响、适用条件变化；按证据更新、降级、合并（保留旧 ID 为 retired）或淘汰。不新增逐章日志或硬配额。
 
-导出/恢复至新的目录（无远端依赖，保留 Markdown 当前版和历史 SHA-256）：
+### 4.4 安全发布（单写者、不可变索引提交）
 
-    node scripts/r3_experience.mjs export LIBRARY --out NEW_EXPORT --project-id my-novel
-    node scripts/r3_experience.mjs verify NEW_EXPORT
-    node scripts/r3_experience.mjs restore NEW_EXPORT --out NEW_LIBRARY
+Gemini 的 Drive 工具实测支持搜索、创建、读内容/导出及移动/重命名；不支持内容 CAS/If-Match，搜索可能有最终一致性延迟。不要假设原地内容更新或并发事务。作者或调度方保证全库串行写入（不只是单主题）。不自动抢锁、不多会话并发初始化；有竞争迹象只暂停经验写入。
 
-仅用户实际要求完整私有库备份时 export --all，避免跨作品泄漏；普通 scoped export 包含全局与该项目条目。宿主回执不作为知识源、不随经验导出。将恢复库交给另一 Agent 即可继续读取/更新标准 Markdown；直接跨平台 Notebook 接入能力仍须真实验证。
+1. 枚举根目录/暂存/归档，完成分页与身份校验；下载当前索引及其引用的全部主题到临时目录（写入前全库校验）。运行 resolve，记录基线索引文件名/内容哈希。现有索引与正文不一致则停止写入、报告并由作者确认恢复；不静默重建生效。
+2. 根据已验证证据仅修改明确 ID；render-theme 生成候选主题。创建于 staging/，候选名含唯一事务标识，旧索引及旧主题完全不动。回读实际候选 Markdown，确认 validate 通过。
+3. 使用实际回读文件运行：
+
+       node scripts/r3_experience_drive.mjs prepare TEMP_DIR BASE_INDEX OLD_THEME NEW_THEME CANDIDATE.md CHANGED_ID
+
+   多个明确变更 ID 可追加参数。prepare 检查保留未修改条目、ID 唯一、版本递增、证据不丢及退休状态；返回候选语义 SHA、baseSha256、下一索引文件名和 indexText。将 indexText 原样写入临时文件，不让模型手工编辑索引。真实上传/转换后的内容必须重新回读校验。
+4. 发布前重新枚举根目录、下载最新有效索引及其引用文件到新临时目录，运行 `confirm-base FRESH_DIR BASE_INDEX BASE_SHA256`。若任何 ID、版本、内容或资源唯一性变化/不确定，停止发布；不把检查称为原子 CAS。
+5. 将已校验候选移动到根目录，命名精确的新主题版本（确认不存在同名文件），回读确认内容与候选一致。此时旧索引仍是唯一提交点。即使此处中断、根目录多一个新版主题，也不得读取未引用文件。
+6. 创建更高版本不可变索引（不覆盖旧索引），以该完整且经校验的索引发布为提交点。枚举确认唯一、回读最新索引与其全部引用主题，运行 resolve，并确认返回的新版本、全部 ID/状态/内容和预期索引一致。若创建结果不明或回读失败，禁止盲目重试和归档；先重新枚举，确认是否已提交。最高索引损坏时停止经验读写并报告，保留全部文件用于恢复，绝不自动回落到可能已撤回经验的旧索引。
+7. 确认新索引有效才归档旧索引及不再被新索引引用的旧主题；未变更主题留在根目录。归档失败不影响已确认的新版，后续串行恢复时复查引用关系再清理；不删除任何已提交历史。失败候选标 REJECTED- 后隔离，禁止默认召回。重入优先按已知事务标识/文件 ID 查找候选与已提交索引；基线变化重新准备，不重复创建。查询失败不得当作资源不存在。
+
+### 4.5 完整备份、迁移与恢复
+
+在串行维护暂停写入时，通过 Drive 原生工具完整枚举并导出当前索引、全部引用主题、archive/ 全部已提交历史索引及主题；失败候选作为可选隔离证据（REJECTED- 文件不参与经验历史）。不把 staging/ 未提交候选纳入正常备份。保留原始导出的 Markdown，不以摘要替代；核对源文件清单与实际导出，重查最新索引未变化。临时目录需只包含现行提交、archive/ 历史、可选 README.md，运行：
+
+    node scripts/r3_experience_drive.mjs seal EXPORT_DIR
+    node scripts/r3_experience_drive.mjs verify EXPORT_DIR
+    node scripts/r3_experience_drive.mjs restore EXPORT_DIR NEW_DIR
+
+seal 生成独立 SHA-256/字节数清单；verify 重新解析当前与全部历史索引、重建索引并核验一致性、连续历史及证据，拒绝缺失、篡改、未提交文件；restore 至新目录再验，不覆盖现有库。打包整个已校验目录为 ZIP。对另一 Agent 只需标准 Markdown 与清单，无原 Drive ID 依赖；使用安全解压（拒绝路径穿越、重复路径及符号链接）后验证。另账号真实云端恢复应由作者授权，先新建隔离目录、上传/回读校验，再切换入口，不能静默替换原库。不得将本地 manifest 的自洽误称为独立证明远端枚举无遗漏。
 
 ## 5. 错误处理与回归
 
@@ -156,6 +176,6 @@ Notebook / Memory 只在宿主真正提供相应接口、用户授权同步时�
 - R3_P1_*_EVIDENCE / *_INVALID：按真实输入字段、原文证据修正。不得直接改审批状态。
 - 原字数工具仍是 `node scripts/check_chapter_wordcount.mjs CHAPTER MIN_WORDS --json`；结果 `results[0].word_count`，plan `wordCount`、`wordCountPass`。不得混用字段或静默改旧 CLI。
 - 使用完整 R3 delivery ZIP 交付含 P1 状态、账本绑定和审核历史；另行按授权导出用户经验库，不把私人库混入小说/Skill 仓库。
-- 回归命令：`node --test scripts/tests/r3_plan_protocol.test.mjs`、`node --test scripts/tests/r3_experience.test.mjs`，以及现有 R3、R2/V3 测试。
+- 回归命令：`node --test scripts/tests/r3_plan_protocol.test.mjs`、`node --test scripts/tests/r3_experience.test.mjs`，`node --test scripts/tests/r3_experience_drive.test.mjs`，以及现有 R3、R2/V3 测试。
 
 文学收益与创作摩擦仍需后续真实连载实测；不要求逐模块进行 Gemini 试跑，不伪造作者批准。
