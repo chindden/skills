@@ -110,6 +110,14 @@ export function parseIndex(s){
   for(const l of ls){const [k,v]=field(l);if(k==='主题')refs.push(json(v));else if(k==='经验')entries.push(json(v));else fail('DRIVE_EXP_INDEX_FIELD')}
   if(refs.some(r=>!r||!keys(r,['file','sha256'])||typeof r.file!=='string'||typeof r.sha256!=='string'||!/^[a-f0-9]{64}$/.test(r.sha256)))fail('DRIVE_EXP_INDEX_REF');
   checkThemeNames(refs.map(r=>r.file));
+  const seen=new Set(),refNames=new Set(refs.map(r=>r.file));
+  for(const e of entries){
+    if(!e||!keys(e,['id','title','revision','status','tags','applicability','file'])||
+      !id(e.id)||seen.has(e.id)||!str(e.title)||!int(e.revision)||!statuses.includes(e.status)||
+      !Array.isArray(e.tags)||!e.tags.every(str)||new Set(e.tags).size!==e.tags.length||
+      !str(e.applicability)||!refNames.has(e.file))fail('DRIVE_EXP_INDEX_ENTRY');
+    seen.add(e.id);
+  }
   return {version:Number(m[1]),refs,entries};
 }
 function safeDir(p){if(!fs.lstatSync(p).isDirectory()||fs.lstatSync(p).isSymbolicLink())fail('DRIVE_EXP_UNSAFE_DIR');return fs.realpathSync(p)}
