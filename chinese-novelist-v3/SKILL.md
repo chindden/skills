@@ -11,7 +11,7 @@ description: 中文精品网文的创意竞标、故事规划、前三章试写�
 
 **仅当作者明确要求使用 R3，且工作项目通过 `init_v3_state.mjs --enable-r3` 显式建立 `v3.r3` 状态时**，优先读取 [R3 实验运行手册](references/v3/r3-operational-runbook.md) 与 [R3 严格分区协议](references/v3/r3-markdown-sections.md)。本文件后续 Stage 2 的 `plan_review.mjs` 整文件冻结说明仅适用于 R2/V3 旧模式；R3 改用独立的 `r3_plan.mjs` 核心与卷级审批，不可混用旧批准链。
 
-R3 继续复用原逐章独立审稿、三章弧审、Pilot 停审与事实账本。明确启用 P1 时，先读 [R3 P1 创作反馈与持续学习协议](references/v3/r3-p1-protocol.md)，用 `r3_p1.mjs PROJECT activate --project-id ID` 激活；该协议优先于后文旧 R2 的手工章节摘要、缺陷处置规则。P1 可选经验库不是正文门禁。P2 风险分级审核、Spike 和完本精修尚未实现，不得提前宣称具备。所有 R3 正文动笔前仍以 `v3_gate.mjs --chapter N --json` 的**真实退出码 0**为准。只用独立实验项目，R2 原项目不静默迁移。
+R3 继续复用原逐章独立审稿、三章弧审、Pilot 停审与事实账本。明确启用 P1 时，先读 [R3 P1 创作反馈与持续学习协议](references/v3/r3-p1-protocol.md)，用 `r3_p1.mjs PROJECT activate --project-id ID` 激活；该协议优先于后文旧 R2 的手工章节摘要、缺陷处置规则。P1 可选经验库不是正文门禁。 P1 启用后必须按协议 §4.1 在新作品立项主动检索，在 Pilot 验收、卷末、完本等自然节点主动提示模型轻量复盘，允许无新增经验；实质反馈或具体创作问题才按需触发。禁止默认逐章/逐弧学习、强制产出或使用经验；经验库不可用不阻断写作。P2 风险分级审核、Spike 和完本精修尚未实现，不得提前宣称具备。所有 R3 正文动笔前仍以 `v3_gate.mjs --chapter N --json` 的**真实退出码 0**为准。只用独立实验项目，R2 原项目不静默迁移。
 
 研发与完成度见 [R3 PRD](docs/R3-PRD.md)。单元测试通过不等于小说好看；须单独评估读者持续追读意愿。
 
