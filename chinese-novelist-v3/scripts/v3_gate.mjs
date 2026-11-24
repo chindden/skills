@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 /** Deterministic chapter gate. It verifies artifacts, not literary merit or true user identity. */
 import fs from 'node:fs';
+import {p1GateIssues,p1PilotIssues} from './r3_p1_common.mjs';
+import {continuityIssues} from './r3_continuity_common.mjs';
 import {projectRoot,readPlan,safeFile,pilotHashes,sameHashes,sha256,structuredReportValid} from './v3_common.mjs';
 import {checkGate} from './r2_review_common.mjs';
 import {verifyPlanGate} from './plan_review_common.mjs';
@@ -15,7 +17,7 @@ const chapter=finalize?finishChapter+1:chapterIndex<0?NaN:Number(args[chapterInd
 const issues=[];
 const fail=(code,message)=>issues.push({code,message});
 const done=(status,root)=>{
-  const result={status,chapter,project:root,issues};
+  const result={status,chapter,project:root,issues,literaryStatus:'UNVERIFIED'};
   console.log(args.includes('--json')?JSON.stringify(result,null,2):status+': '+issues.map(x=>x.code).join(','));
   process.exitCode=status==='allowed'?0:status==='blocked'?1:2;
 };
@@ -85,6 +87,10 @@ if(!folder||!Number.isSafeInteger(chapter)||chapter<1||(finalize&&(!Number.isSaf
     }
     try {for(const code of checkGate(root,plan,chapter,finalize))fail(code,'R2 independent chapter/milestone review gate');}
     catch(e){fail('R2_CHECK_ERROR',e.message);}
+    try{
+      for(const code of [...p1GateIssues(root,plan,chapter,finalize),...p1PilotIssues(root,plan),
+        ...continuityIssues(root,plan,chapter-1)])fail(code,'R3 P1 source binding or arc obligation');
+    }catch(e){fail('R3_P1_CHECK_ERROR',e.message);}
     done(issues.length?'blocked':'allowed',root);
   }
 }
