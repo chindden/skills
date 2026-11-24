@@ -76,7 +76,7 @@
 
 ## 4. 正式连续写作和既有编辑门禁
 
-P0 阶段的 reviewPolicy 必须为 every_chapter。风险分级审稿还未实现，严禁提前开启。
+P0/P1 阶段的 reviewPolicy 必须为 every_chapter。P1 经明确启用后遵循 [R3 P1 创作反馈与持续学习协议](r3-p1-protocol.md)，先激活并核对既有事实源；新章用版本绑定账本替代强制手工章节摘要。风险分级审稿还未实现，严禁提前开启。
 
 每章动笔前必须检查：
 
@@ -138,7 +138,8 @@ P0 阶段的 reviewPolicy 必须为 every_chapter。风险分级审稿还未实�
     node --test scripts/tests/r3_plan_sections.test.mjs
     node --test scripts/tests/r3_plan_protocol.test.mjs
     node --test scripts/tests/r3_faults.test.mjs
+    node --test scripts/tests/r3_experience.test.mjs
 
 r3_plan_protocol.test.mjs 包含 P0-F01/F02 的实际 CLI 回归，运行时需要 Node.js 与 Python 3（仅标准库）。同时要求原有 GitHub Actions 中 Chinese Novelist V3 tests 全部通过。测试中的作者消息为明确标示的 fixture，不构成真实批准。
 
-**执行纪律**：P0-01 到 P0-09 通过自动化测试并更新 PRD 后，再邀请 Gemini 使用 R3 正式创作。P1/P2 尚待开发，不能把 P0 工程通过宣称为小说品质经实测提升。
+**执行纪律**：P0-01 到 P0-09 通过自动化测试并更新 PRD 后，再邀请 Gemini 使用 R3 正式创作。P1 集中开发及回归后才进行下一次真实 Gemini 试跑，P2 仍待开发；不能把工程测试通过宣称为小说品质提升。
