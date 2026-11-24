@@ -9,6 +9,9 @@ import {fileURLToPath} from 'node:url';
 import {createSnapshot,verifySnapshot} from '../r3_snapshots.mjs';
 import {textDiff} from '../r3_diff.mjs';
 import {sha256} from '../v3_common.mjs';
+import {issueKey} from '../r3_p1_common.mjs';
+import {momentum,cascadeWarnings} from '../r3_feedback_view.mjs';
+import {structuredChecks} from '../r3_structured_checks.mjs';
 
 const script=name=>fileURLToPath(new URL('../'+name+'.mjs',import.meta.url));
 const outline='# 故事大纲\n## 核心契约\n核心承诺：经营与修仙同频。核心能力不能读心。\n## 滚动卷纲\n### 第1卷\n卷一：灵米经营。\n### 第2卷\n卷二：开新坊市。\n';
@@ -482,4 +485,197 @@ test('P0-F02: missing review evidence, tampered snapshot and generic backup cann
   const invalid=delivery('verify',incomplete);
   assert.equal(invalid.status,2,invalid.stdout);
   assert.match(invalid.stdout,/R2_REVIEW_FILE_MISSING_ch003/);
+});
+
+const p1run=(root,...args)=>spawnSync(process.execPath,[script('r3_p1'),root,...args],{encoding:'utf8'});
+const jsonOk=r=>{assert.equal(r.status,0,r.stdout+' '+r.stderr);return JSON.parse(r.stdout)};
+const jsonBad=(r,pattern)=>{assert.notEqual(r.status,0,r.stdout);assert.match(r.stdout,pattern)};
+const ledgerRead=root=>JSON.parse(fs.readFileSync(path.join(root,'story-ledger.json'),'utf8'));
+const ledgerSave=(root,l)=>rfile(root,'story-ledger.json',l);
+const chapterQuote=n=>'第'+n+'章正式文本';
+function basicLedger(n){
+  const nums=Array.from({length:n},(_,i)=>i+1);
+  return {schemaVersion:1,facts:[],foreshadowing:[],relationships:[],
+    mechanisms:nums.map(chapter=>({id:'M'+chapter,chapter,goal:'经营'+chapter,strategy:'谈判',
+      opposition:'缺钱',cost:'承担风险',outcome:'完成交易'})),
+    handoffs:nums.map(chapter=>({chapter,asOf:'D+'+chapter,events:[{when:'D+'+chapter,event:'完成交易'}],knowledge:[]}))};
+}
+function bindChapter(root,n){
+  const i=jsonOk(p1run(root,'inspect','--chapter',String(n)));
+  const {rows,literaryStatus,...base}=i;
+  const anchors=Object.fromEntries(rows.map(r=>[r.id,n===0?'核心能力不能读心。':chapterQuote(n)]));
+  rfile(root,'binding.json',{schemaVersion:1,...base,checkedBy:{runId:'fixture-binder',contextId:'fixture-bind-ctx'},
+    reviewNote:'测试：逐条回查原文，非真实文学判断。',anchors});
+  return jsonOk(p1run(root,'bind','--evidence','binding.json'));
+}
+const fact=(id,chapter,value,extra={})=>({id,chapter,kind:'established',subject:'灵米',key:'归属',scope:'global',
+  value,evidence:'原文',...extra});
+const p1meta=(extra={})=>({schemaVersion:1,literaryStatus:'UNVERIFIED',preserveStrengths:[],signals:[],
+  followUps:[],revisionProtection:[],...extra});
+const strength=(n,id='STR1')=>({id,status:'observed',chapter:n,quote:chapterQuote(n),reason:'有实际代价选择'});
+const threeStrengths=()=>[1,2,3].map(n=>strength(n,'STR'+n));
+const issue=(n,extra={})=>({id:'ISS-'+n,severity:'MINOR',status:'open',chapter:n,quote:chapterQuote(n),
+  reason:'局部措辞不顺',suggestion:'完本定向复核',classification:'C',evidenceLevel:'narrative_risk',
+  disposition:'defer_to_final',subject:'灵米',key:'归属',factId:null,...extra});
+function p1New(t,end=4){
+  const root=fixture(t);approvedCore(root);approvedVolume(root,1,1,end);
+  ledgerSave(root,basicLedger(0));
+  jsonOk(p1run(root,'activate','--project-id','test-book'));
+  fs.mkdirSync(path.join(root,'chapters'));
+  return root;
+}
+function p1Chapter(root,n){
+  const plan=read(root);plan.chapters[n-1].status='completed';plan.chapters[n-1].wordCountPass=true;
+  save(root,plan);
+  const p=path.join(root,'chapters',n+'.md');
+  if(!fs.existsSync(p))fs.writeFileSync(p,chapterQuote(n)+'：掌柜作出有代价的经营选择。\n');
+  const l=ledgerRead(root),base=basicLedger(n);
+  if(!l.handoffs.some(x=>x.chapter===n)){
+    l.handoffs.push(base.handoffs[n-1]);l.mechanisms.push(base.mechanisms[n-1]);ledgerSave(root,l);
+  }
+  const prepared=jsonOk(cli('r2_review',root,'prepare','--scope','chapter','--end',String(n),
+    '--writer-run-id','writer-'+n,'--writer-context-id','writerctx-'+n));
+  const pkt=JSON.parse(fs.readFileSync(path.join(root,prepared.inputPath),'utf8'));
+  assert.equal(pkt.p1Protocol,1);
+  return {schemaVersion:1,kind:'chapter',end:n,revision:pkt.revision,manuscriptHashes:pkt.manuscriptHashes,
+    reviewer:{kind:'independent_agent',runId:'editor-'+n+'-'+pkt.revision,contextId:'editorctx-'+n+'-'+pkt.revision},
+    decision:'pass_candidate',summary:'测试审稿',issues:[],p1:p1meta()};
+}
+function p1Submit(root,r){
+  rfile(root,'p1-report.json',r);
+  return cli('r2_review',root,'submit','--scope',r.kind,'--end',String(r.end),'--report','p1-report.json');
+}
+const p1gate=(root,n)=>cli('v3_gate',root,'--chapter',String(n));
+test('P1 migration preserves actual Pilot candidate; binds existing sources and rejects stale ledger without requiring synopsis',t=>{
+  const root=readyPilot(t);prepareCandidate(root);
+  const source=JSON.parse(fs.readFileSync(path.join(root,'pilot-source.json'),'utf8'));
+  source.issues=[{id:'P-legacy',severity:'MINOR',status:'open',chapter:3,quote:chapterQuote(3),
+    reason:'测试局部瑕疵',suggestion:'完本回看'}];rfile(root,'pilot-source.json',source);
+  jsonOk(cli('submit_pilot_review',root,'pilot-source.json'));
+  const old=read(root),l=basicLedger(3);
+  l.facts=[{...fact('CORE',0,'不能读心'),subject:'能力',key:'边界'},
+    fact('F1',1,'甲',{supersededBy:'F2'}),fact('F2',2,'乙')];
+  l.foreshadowing=[{id:'P1',chapter:1,description:'伏笔',status:'open',
+    progress:[{chapter:3,quote:chapterQuote(3),note:'推进'}]}];
+  ledgerSave(root,l);
+  const activation=jsonOk(p1run(root,'activate','--project-id','pilot-book'));
+  assert.equal(activation.baselineUpto,3);assert.deepEqual(read(root).v3.pilotGate,old.v3.pilotGate);
+  const status=p1run(root,'status','--upto','3');assert.equal(status.status,1);
+  assert.equal(JSON.parse(status.stdout).legacyCandidates.length,1);
+  assert.match(status.stdout,/R3_LEDGER_BINDING_STALE_OR_MISSING/);
+  for(let n=0;n<=3;n++)bindChapter(root,n);
+  const h=jsonOk(cli('audit_story_state',root,'--upto','3','--handoff'));
+  assert.equal(h.recentSources.length,3);assert.equal(h.literaryStatus,'UNVERIFIED');
+  assert.deepEqual(h.baseline.facts.map(f=>f.id),['CORE','F2']);
+  assert.ok(!fs.existsSync(path.join(root,'99-章节摘要.md')));
+  const at1=jsonOk(cli('audit_story_state',root,'--upto','1','--handoff'));
+  assert.deepEqual(at1.baseline.facts.map(f=>f.id),['CORE','F1']);
+  writePilotApproval(root);jsonOk(cli('record_pilot_approval',root,'--evidence','pilot-approval.json'));
+  jsonOk(p1gate(root,4));
+  const good=ledgerRead(root),bad=structuredClone(good);bad.facts[2].value='丙';ledgerSave(root,bad);
+  jsonBad(p1gate(root,4),/R3_LEDGER_BINDING_STALE_OR_MISSING_2/);
+  jsonBad(cli('audit_story_state',root,'--upto','3','--handoff'),/R3_LEDGER_BINDING_STALE_OR_MISSING_2/);
+  ledgerSave(root,good);jsonOk(p1gate(root,4));
+  const archive=path.join(outdir(t),'p1-pilot.zip');
+  assert.equal(deliveryResult(delivery('create',root,archive,'--upto','3')).checkpoint.gate.status,'allowed');
+});
+test('P1 review refuses hard causal deferral, invented quotations, missing defense and missing protocol; allows C and B in chapter',t=>{
+  const root=p1New(t),r=p1Chapter(root,1);
+  const b=issue(1,{id:'B1',severity:'MAJOR',classification:'B',disposition:'fix_in_arc',
+    subject:'人物',key:'动机',reverseDefense:{chapter:1,quote:chapterQuote(1),reason:'尝试现有解释'}});
+  for(const [patch,pattern] of [
+    [{...b,classification:'A'},/HARD_CAUSAL_FLOOR/],
+    [{...b,evidenceLevel:'causal_break'},/CAUSAL_BREAK_MUST_FIX_NOW/],
+    [{...b,reverseDefense:null},/REVERSE_DEFENSE_REQUIRED/],
+    [{...b,quote:'不存在的引文'},/EVIDENCE_OR_DISPOSITION/]
+  ])jsonBad(p1Submit(root,{...r,issues:[patch]}),pattern);
+  jsonBad(p1Submit(root,{...r,p1:undefined}),/REPORT_FIELDS_INVALID/);
+  jsonOk(p1Submit(root,{...r,issues:[b,issue(1)],p1:p1meta({preserveStrengths:[strength(1)]})}));
+  bindChapter(root,1);jsonOk(p1gate(root,2));
+  const s=jsonOk(p1run(root,'status','--upto','1'));assert.equal(s.deferredIssues.length,2);
+  assert.equal(s.dueIssues.length,0);
+});
+test('P1 Pilot closes due B at arc boundary, deduplicates C, retains real author gate and specific cascade warnings',t=>{
+  const root=p1New(t);
+  const b=issue(1,{id:'B1',severity:'MAJOR',classification:'B',disposition:'fix_in_arc',
+    subject:'人物',key:'动机',reverseDefense:{chapter:1,quote:chapterQuote(1),reason:'现有文字仍不足'}});
+  const c=issue(1);
+  for(let n=1;n<=3;n++){
+    const r=p1Chapter(root,n);
+    if(n===1){const l=ledgerRead(root);l.facts.push(fact('F1',1,'甲'));ledgerSave(root,l);c.factId='F1';r.issues=[b,c]}
+    r.p1=p1meta({signals:n===1?[{kind:'promise_open',id:'PROMISE',chapter:n,quote:chapterQuote(n),description:'后续经营机会'}]:[]});
+    jsonOk(p1Submit(root,r));bindChapter(root,n);
+  }
+  jsonBad(p1gate(root,4),/R3_P1_ARC_FIX_DUE_/);
+  const handoff=jsonOk(cli('audit_story_state',root,'--upto','3','--handoff','--anchor','F1'));
+  assert.equal(handoff.cascadeWarnings.length,1);assert.equal(handoff.cascadeWarnings[0].factId,'F1');
+  const prepared=jsonOk(cli('prepare_pilot_review',root));
+  const hashes=Object.fromEntries(prepared.chapters.map(x=>[String(x.chapterNumber),x.sha256]));
+  const r={schemaVersion:1,revision:prepared.revision,manuscriptHashes:hashes,
+    reviewer:{kind:'independent_agent',runId:'pilot-editor',contextId:'pilot-context'},
+    decision:'pass_candidate',summary:'测试',issues:[{...c,id:'C-pilot'}],
+    strengths:['一','二','三'],p1:p1meta({preserveStrengths:threeStrengths()})};
+  rfile(root,'p1-pilot.json',r);jsonBad(cli('submit_pilot_review',root,'p1-pilot.json'),/R3_P1_ARC_FIX_DUE_/);
+  r.p1.followUps=[{trackingId:issueKey(b),status:'resolved',chapter:3,quote:chapterQuote(3),reason:'本弧已补强'}];
+  rfile(root,'p1-pilot.json',r);jsonOk(cli('submit_pilot_review',root,'p1-pilot.json'));
+  const status=jsonOk(p1run(root,'status','--upto','3'));
+  assert.equal(status.deferredIssues.find(x=>x.trackingId===issueKey(b)).status,'resolved');
+  assert.equal(status.deferredIssues.find(x=>x.trackingId===issueKey(c)).references.length,2);
+  assert.equal(status.deferredIssues.filter(x=>x.status==='open').length,1);
+  jsonBad(p1gate(root,4),/PILOT_NOT_PASSED/);
+  writePilotApproval(root);jsonOk(cli('record_pilot_approval',root,'--evidence','pilot-approval.json'));
+  jsonOk(p1gate(root,4));
+});
+test('P1 revision requires explicit preservation review and rebinds manuscript/ledger; prior feedback retained',t=>{
+  const root=p1New(t),r=p1Chapter(root,1);
+  r.p1.preserveStrengths=[strength(1)];r.issues=[issue(1)];
+  jsonOk(p1Submit(root,r));bindChapter(root,1);
+  fs.appendFileSync(path.join(root,'chapters/1.md'),'新增测试段落。');
+  const next=p1Chapter(root,1);
+  jsonBad(p1Submit(root,next),/REVISION_PROTECTION_REQUIRED/);
+  next.p1.revisionProtection=[{id:'STR1',status:'preserved',chapter:1,quote:chapterQuote(1),reason:'保留有效选择'}];
+  jsonOk(p1Submit(root,next));
+  jsonBad(p1gate(root,2),/R3_LEDGER_BINDING_STALE_OR_MISSING_1/);
+  bindChapter(root,1);jsonOk(p1gate(root,2));
+  assert.equal(jsonOk(p1run(root,'status','--upto','1')).deferredIssues.length,1);
+});
+test('P1 volume retrospective is source-backed candidate, never auto-edits next volume; soft dormant reminders use last progress',t=>{
+  const root=p1New(t,2);
+  for(let n=1;n<=2;n++){
+    const r=p1Chapter(root,n);r.p1.signals=[{kind:n===1?'promise_open':'promise_progress',
+      id:'P1',chapter:n,quote:chapterQuote(n),description:'读者期待'}];
+    jsonOk(p1Submit(root,r));bindChapter(root,n);
+  }
+  const p=jsonOk(p1run(root,'volume','--volume','1'));
+  const old=fs.readFileSync(path.join(root,'02-写作计划.json')),oldOutline=fs.readFileSync(path.join(root,'01-大纲.md'));
+  assert.equal(p.packet.endChapter,2);
+  const candidate={schemaVersion:1,packetSha256:p.packetSha256,reviewer:{runId:'fixture-editor',contextId:'fixture'},
+    observations:[{chapter:1,quote:chapterQuote(1),reason:'有代价选择',proposal:'保留'}],
+    nextVolumeProposals:[{chapter:2,quote:chapterQuote(2),reason:'期待仍在',proposal:'卷二可继续'}]};
+  rfile(root,'volume-candidate.json',candidate);
+  const saved=jsonOk(p1run(root,'volume','--volume','1','--candidate','volume-candidate.json'));
+  assert.equal(saved.status,'candidate_only');assert.ok(fs.existsSync(path.join(root,saved.snapshotPath,'manifest.json')));
+  assert.deepEqual(fs.readFileSync(path.join(root,'02-写作计划.json')),old);
+  assert.deepEqual(fs.readFileSync(path.join(root,'01-大纲.md')),oldOutline);
+  const m=momentum({signals:[{kind:'character_progress',id:'CORE',chapter:1,core:true},
+    {kind:'negative',chapter:11},{kind:'negative',chapter:12}]},{foreshadowing:[
+    {id:'P',chapter:1,status:'open',progress:[{chapter:9}]}]},12);
+  assert.equal(m.consecutiveNegativeChapters,2);
+  assert.ok(m.warnings.some(x=>x.code==='CORE_CHARACTER_TRACKING_DORMANT'));
+  assert.ok(!m.warnings.some(x=>x.code==='LONG_OPEN_FORESHADOW'));
+  assert.equal(cascadeWarnings({deferredIssues:[{status:'open',subject:'灵米',key:'归属'}]},[{subject:'灵米',key:'重量'}]).length,0);
+});
+test('P1 deterministic checks use explicit same-unit quantities and day/minute fields, not prose claims',t=>{
+  const root=p1New(t),r=p1Chapter(root,1);jsonOk(p1Submit(root,r));
+  const l=ledgerRead(root);
+  l.r3Checks=[{id:'Q1',chapter:1,kind:'quantity_balance',impact:'hard',quote:chapterQuote(1),
+    unit:'铜钱',opening:10,deltas:[-3],closing:8},
+    {id:'T1',chapter:1,kind:'chronology',impact:'advisory',quote:chapterQuote(1),
+      earlier:{day:2,minuteOfDay:1},later:{day:1,minuteOfDay:1439},relation:'before'}];
+  ledgerSave(root,l);bindChapter(root,1);
+  jsonBad(p1gate(root,2),/R3_STRUCTURED_QUANTITY_BALANCE_MISMATCH_Q1/);
+  l.r3Checks[0].closing=7;ledgerSave(root,l);bindChapter(root,1);jsonOk(p1gate(root,2));
+  assert.equal(structuredChecks(l,1).length,1);
+  const audit=jsonOk(cli('audit_story_state',root,'--upto','1'));
+  assert.ok(audit.issues.some(i=>i.code==='R3_STRUCTURED_CHRONOLOGY_MISMATCH'));
 });
